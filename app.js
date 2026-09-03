@@ -9,13 +9,13 @@
    1. メンバー定義（キーは GAS 側 Code.gs の MEMBERS と一致させること）
    ------------------------------------------------------------------ */
 var MEMBERS = [
-  { key: 'father',   label: '父',   color: '#FF6E40' },  /* 朱色 */
+  { key: 'father',   label: '父',   color: '#8FA0B5' },  /* グレー */
   { key: 'mother',   label: '母',   color: '#FF7AA8' },  /* ピンク */
   { key: 'son1',     label: '長男', color: '#4FA3FF' },  /* 青 */
   { key: 'son2',     label: '次男', color: '#4ED9A4' },  /* 緑 */
   { key: 'daughter', label: '長女', color: '#FFD84D' }   /* 黄 */
 ];
-var SHARED = { key: 'shared', label: 'みんな', color: '#8FA0B5' };
+var SHARED = { key: 'shared', label: 'みんな', color: '#B98BFF' };
 
 /* ------------------------------------------------------------------
    2. 設定（localStorage）
