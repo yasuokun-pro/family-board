@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="家族ボード">
+<meta name="theme-color" content="#0B0F14">
+<title>家族ボード</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="shift">
+
+  <!-- ============ 左サイド：時計＋カレンダー ============ -->
+  <aside class="side">
+    <div class="clock">
+      <div class="clock-time"><span id="ck-h">--</span><span class="colon" id="ck-colon">:</span><span id="ck-m">--</span></div>
+      <div class="clock-sub">
+        <span id="ck-date">— / —</span>
+        <span class="dow" id="ck-dow">—</span>
+      </div>
+      <div class="clock-holiday" id="ck-holiday"></div>
+    </div>
+
+    <div class="wx" id="wx" hidden>
+      <div class="wx-icon" id="wx-icon">…</div>
+      <div class="wx-main">
+        <div class="wx-temp"><span id="wx-t">--</span><span class="wx-unit">°</span></div>
+        <div class="wx-sub">
+          <span id="wx-hl"></span>
+          <span class="wx-pop" id="wx-pop"></span>
+        </div>
+      </div>
+      <div class="wx-place" id="wx-place"></div>
+    </div>
+
+    <div class="cal">
+      <div class="cal-head">
+        <span id="cal-title">—</span>
+      </div>
+      <div class="cal-dow">
+        <span class="sun">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <div class="next-up" id="next-up"></div>
+  </aside>
+
+  <!-- ============ メイン：5人のタイムライン ============ -->
+  <main class="board">
+
+    <div class="board-top">
+      <div class="board-title">
+        <span id="board-date">今日の予定</span>
+        <span class="board-sub" id="board-sub"></span>
+      </div>
+      <div class="board-tools">
+        <span class="status" id="status">読み込み中…</span>
+        <button class="icon-btn" id="btn-prev" title="前の日">‹</button>
+        <button class="icon-btn" id="btn-today" title="今日へ">今日</button>
+        <button class="icon-btn" id="btn-next" title="次の日">›</button>
+        <button class="icon-btn" id="btn-settings" title="設定">⚙</button>
+      </div>
+    </div>
+
+    <div class="lanes-head" id="lanes-head"></div>
+    <div class="allday" id="allday"></div>
+
+    <div class="tl-wrap">
+      <div class="tl" id="tl">
+        <div class="axis" id="axis"></div>
+        <div class="lanes" id="lanes"></div>
+        <div class="nowline" id="nowline"><span class="nowdot"></span></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<!-- ============ 設定パネル ============ -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <h2>設定</h2>
+
+    <label class="fld">
+      <span>データ取得URL（Google Apps Script の /exec）</span>
+      <input type="url" id="s-endpoint" placeholder="https://script.google.com/macros/s/xxxxx/exec" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <small>空のままにするとサンプルデータ（デモ表示）になります。</small>
+    </label>
+
+    <label class="fld">
+      <span>天気を表示する地域</span>
+      <input type="text" id="s-place" placeholder="例: 八王子市" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <small>「市」「区」まで入れると一つに絞れます（「横浜」だけだと同名の別の場所が先に出ます）。
+      複数見つかったときは候補から選んでください。空にすると天気を非表示にします。</small>
+      <div class="place-results" id="s-place-results"></div>
+    </label>
+
+    <div class="fld-row">
+      <label class="fld">
+        <span>表示開始</span>
+        <select id="s-start"></select>
+      </label>
+      <label class="fld">
+        <span>表示終了</span>
+        <select id="s-end"></select>
+      </label>
+      <label class="fld">
+        <span>更新間隔</span>
+        <select id="s-refresh">
+          <option value="1">1分</option>
+          <option value="3">3分</option>
+          <option value="5">5分</option>
+          <option value="10">10分</option>
+          <option value="30">30分</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="fld">
+      <span>メンバー表示名</span>
+      <div class="members" id="s-members"></div>
+    </div>
+
+    <label class="chk">
+      <input type="checkbox" id="s-burnin">
+      <span>焼き付き防止（数分ごとに画面をわずかにずらす）</span>
+    </label>
+
+    <div class="modal-actions">
+      <span class="modal-msg" id="s-msg"></span>
+      <button class="btn ghost" id="btn-close">閉じる</button>
+      <button class="btn" id="btn-save">保存して再読込</button>
+    </div>
+
+    <p class="hint">画面の右上をタップすると、いつでもこの設定を開けます。</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

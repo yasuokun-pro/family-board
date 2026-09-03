@@ -1,0 +1,685 @@
+/* ===================================================================
+   家族ボード / Family Board
+   古いiPhone → HDMIミラーリング → モバイルモニター常時表示 用
+   サイズは vh 基準。ミラーリングで拡大されても比率が崩れないため。
+   iOS 15/16 Safari 互換：:has() / container query / nesting は不使用
+   =================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0B0F14;
+  color: #E6EDF5;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:root {
+  --bg:        #0B0F14;
+  --panel:     #131A22;
+  --panel-2:   #1A232E;
+  --line:      #263140;
+  --line-soft: #1C2530;
+  --text:      #E6EDF5;
+  --muted:     #8093A8;
+  --dim:       #55677D;
+  --sun:       #FF8080;
+  --sat:       #7FB6FF;
+  --now:       #FF4D5E;
+
+  --hour-h: 40px;          /* JSが実測して上書き */
+  --lane-count: 5;         /* JSが上書き */
+  --pad: 1.6vh;
+}
+
+#shift {
+  height: 100%;
+  display: flex;
+  transition: transform 2s linear;   /* 焼き付き防止のドリフト */
+  will-change: transform;
+}
+
+/* ============================ 左サイド ============================ */
+
+.side {
+  width: 25%;
+  min-width: 20%;
+  flex: 0 0 auto;
+  padding: var(--pad);
+  padding-left: max(var(--pad), env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 1.4vh;
+  border-right: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, #0E141B 0%, #0B0F14 100%);
+}
+
+/* --- 時計 --- */
+.clock { flex: 0 0 auto; }
+
+.clock-time {
+  font-size: 15vh;
+  line-height: 0.92;
+  font-weight: 250;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+}
+.clock-time .colon {
+  margin: 0 0.02em;
+  transform: translateY(-0.06em);
+  transition: opacity 0.25s ease;
+}
+.clock-time .colon.off { opacity: 0.18; }
+
+.clock-sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.6em;
+  margin-top: 0.6vh;
+  font-size: 3.1vh;
+  color: var(--muted);
+  font-weight: 400;
+}
+.clock-sub .dow {
+  font-size: 2.6vh;
+  padding: 0.1em 0.5em;
+  border-radius: 0.4em;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.clock-sub .dow.sun { color: var(--sun); }
+.clock-sub .dow.sat { color: var(--sat); }
+
+.clock-holiday {
+  text-align: center;
+  font-size: 2vh;
+  color: var(--sun);
+  min-height: 2.4vh;
+  margin-top: 0.2vh;
+}
+
+/* --- 天気 --- */
+.wx {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1vh;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 1.2vh;
+  padding: 0.9vh 1.2vh;
+  position: relative;
+}
+.wx[hidden] { display: none; }
+
+.wx-icon {
+  font-size: 4.4vh;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.wx-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9vh;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.wx-temp {
+  font-size: 4.2vh;
+  font-weight: 300;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.wx-temp .wx-unit {
+  font-size: 2.4vh;
+  color: var(--muted);
+  margin-left: 0.05em;
+}
+.wx-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2vh;
+  font-size: 1.8vh;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.wx-pop { color: var(--sat); }
+.wx-place {
+  position: absolute;
+  top: 0.7vh;
+  right: 1.1vh;
+  font-size: 1.5vh;
+  color: var(--dim);
+}
+
+/* --- 月カレンダー --- */
+.cal {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 1.2vh;
+  padding: 1.2vh 1vh;
+}
+.cal-head {
+  text-align: center;
+  font-size: 2.3vh;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.8vh;
+}
+.cal-dow, .cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2vh;
+}
+.cal-dow span {
+  text-align: center;
+  font-size: 1.7vh;
+  color: var(--dim);
+  padding-bottom: 0.4vh;
+}
+.cal-dow .sun { color: #B26A6A; }
+.cal-dow .sat { color: #5D7EA6; }
+
+.cal-cell {
+  position: relative;
+  aspect-ratio: 1 / 0.86;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2vh;
+  color: var(--text);
+  border-radius: 0.6vh;
+  font-variant-numeric: tabular-nums;
+}
+.cal-cell.out    { color: #33414F; }
+.cal-cell.sun    { color: var(--sun); }
+.cal-cell.sat    { color: var(--sat); }
+.cal-cell.hol    { color: var(--sun); }
+.cal-cell.today  { background: #E6EDF5; color: #0B0F14; font-weight: 700; }
+.cal-cell.viewed { box-shadow: inset 0 0 0 0.25vh #4FA3FF; }
+
+.cal-dots {
+  position: absolute;
+  bottom: 0.15vh;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.25vh;
+  height: 0.7vh;
+}
+.cal-dots i {
+  width: 0.55vh; height: 0.55vh;
+  border-radius: 50%;
+  background: currentColor;
+  display: block;
+}
+.cal-cell.today .cal-dots i { box-shadow: 0 0 0 0.1vh #0B0F14; }
+
+/* --- 次の予定 --- */
+.next-up {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+  padding-top: 0.4vh;
+}
+.nu-title {
+  font-size: 1.8vh;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+.nu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7vh;
+  font-size: 2vh;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nu-item b {
+  color: var(--text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nu-chip {
+  flex: 0 0 auto;
+  width: 0.9vh; height: 0.9vh;
+  border-radius: 50%;
+  background: currentColor;
+}
+.nu-time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ============================ メイン ============================ */
+
+.board {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad);
+  padding-right: max(var(--pad), env(safe-area-inset-right));
+  gap: 0.8vh;
+}
+
+.board-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1vh;
+}
+.board-title {
+  font-size: 3vh;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7em;
+  min-width: 0;
+}
+.board-sub {
+  font-size: 1.9vh;
+  font-weight: 400;
+  color: var(--muted);
+}
+.board-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6vh;
+  flex: 0 0 auto;
+}
+.status {
+  font-size: 1.6vh;
+  color: var(--dim);
+  margin-right: 0.4vh;
+}
+.status.err { color: #FF8A8A; }
+.icon-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--line-soft);
+  border-radius: 0.7vh;
+  font-size: 1.9vh;
+  line-height: 1;
+  padding: 0.7vh 1.1vh;
+  cursor: pointer;
+  font-family: inherit;
+}
+.icon-btn:active { background: var(--panel-2); color: var(--text); }
+
+/* --- レーン見出し --- */
+.lanes-head {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 6vh repeat(var(--lane-count), 1fr);
+  gap: 0.5vh;
+}
+.lh {
+  border-radius: 0.8vh 0.8vh 0 0;
+  padding: 0.7vh 0.6vh;
+  text-align: center;
+  font-size: 2.3vh;
+  font-weight: 600;
+  color: var(--c);
+  background: var(--panel);
+  border-bottom: 0.35vh solid var(--c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lh .lh-n {
+  display: block;
+  font-size: 1.5vh;
+  font-weight: 400;
+  color: var(--dim);
+  margin-top: 0.1vh;
+}
+
+/* --- 終日予定バンド --- */
+.allday {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 6vh repeat(var(--lane-count), 1fr);
+  gap: 0.5vh;
+  min-height: 0;
+}
+.ad-cell { display: flex; flex-direction: column; gap: 0.3vh; }
+.ad-lbl {
+  align-self: center;
+  font-size: 1.5vh;
+  color: var(--dim);
+  padding-top: 0.4vh;
+}
+.ad-ev {
+  background: var(--c);
+  color: #0B0F14;
+  font-size: 1.8vh;
+  font-weight: 600;
+  border-radius: 0.5vh;
+  padding: 0.35vh 0.6vh;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- タイムライン --- */
+.tl-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.tl {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 6vh repeat(var(--lane-count), 1fr);
+  gap: 0.5vh;
+}
+
+.axis { position: relative; }
+.axis .hr {
+  position: absolute;
+  right: 0.5vh;
+  transform: translateY(-0.65em);
+  font-size: 1.8vh;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.axis .hr.first { transform: translateY(0); }
+.axis .hr.last  { transform: translateY(-1.25em); }
+
+.lanes { display: contents; }
+
+.lane {
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      var(--line-soft) 0, var(--line-soft) 1px,
+      transparent 1px, transparent var(--hour-h)
+    ),
+    var(--panel);
+  border-radius: 0 0 0.8vh 0.8vh;
+  overflow: hidden;
+}
+.lane.off { opacity: 0.55; }
+
+.ev {
+  position: absolute;
+  left: 0.4vh;
+  right: 0.4vh;
+  border-radius: 0.6vh;
+  background: var(--c-bg);
+  border-left: 0.5vh solid var(--c);
+  padding: 0.4vh 0.6vh;
+  overflow: hidden;
+  min-height: 2.6vh;
+}
+.ev-t {
+  font-size: 1.6vh;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.ev-n {
+  font-size: 2vh;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.15;
+  overflow: hidden;
+}
+.ev-loc {
+  font-size: 1.5vh;
+  color: var(--muted);
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ev.short { padding: 0.15vh 0.6vh; }
+.ev.short .ev-n { font-size: 1.7vh; }
+.ev.short .ev-t { display: none; }
+.ev.short .ev-loc { display: none; }
+.ev.past { opacity: 0.42; }
+.ev.live {
+  box-shadow: 0 0 0 0.25vh var(--c), 0 0.5vh 1.5vh rgba(0,0,0,0.5);
+  background: var(--c-bg2);
+}
+
+.empty-lane {
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 1.8vh;
+  color: #2C3846;
+}
+
+/* --- 現在時刻ライン --- */
+.nowline {
+  position: absolute;
+  left: 6vh;
+  right: 0;
+  height: 0;
+  border-top: 0.25vh solid var(--now);
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+.nowline .nowdot {
+  position: absolute;
+  left: -0.5vh; top: -0.6vh;
+  width: 1.1vh; height: 1.1vh;
+  border-radius: 50%;
+  background: var(--now);
+}
+
+/* ============================ 設定モーダル ============================ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 11, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 2vh;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.modal[hidden] { display: none !important; }
+
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.4vh;
+  padding: 2.4vh;
+  width: 100%;
+  max-width: 86vw;
+  max-height: 94vh;
+  overflow: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.modal-box h2 {
+  margin: 0 0 1.6vh;
+  font-size: 2.8vh;
+  font-weight: 600;
+}
+.fld { display: block; margin-bottom: 1.6vh; }
+.fld > span {
+  display: block;
+  font-size: 1.8vh;
+  color: var(--muted);
+  margin-bottom: 0.5vh;
+}
+.fld small {
+  display: block;
+  font-size: 1.5vh;
+  color: var(--dim);
+  margin-top: 0.4vh;
+}
+.fld input[type="url"], .fld input[type="text"], .fld select {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 0.7vh;
+  padding: 1vh 1.1vh;
+  font-size: 2vh;
+  font-family: inherit;
+}
+.fld-row { display: flex; gap: 1.2vh; }
+.fld-row .fld { flex: 1 1 0; }
+
+.place-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7vh;
+  margin-top: 0.9vh;
+}
+.place-opt {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.7vh;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  padding: 0.7vh 1vh;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15vh;
+  min-width: 14vh;
+}
+.place-opt:active { background: var(--panel-2); }
+.place-opt b    { font-size: 1.9vh; font-weight: 600; }
+.place-opt span { font-size: 1.6vh; color: var(--muted); }
+.place-opt em   { font-size: 1.4vh; color: var(--dim); font-style: normal; font-variant-numeric: tabular-nums; }
+
+.members { display: flex; gap: 0.8vh; flex-wrap: wrap; }
+.member-in {
+  flex: 1 1 18%;
+  min-width: 16vh;
+  display: flex;
+  align-items: center;
+  gap: 0.6vh;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.7vh;
+  padding: 0.5vh 0.8vh;
+}
+.member-in i {
+  width: 1.4vh; height: 1.4vh;
+  border-radius: 50%;
+  background: var(--c);
+  flex: 0 0 auto;
+}
+.member-in input {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 1.9vh;
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5vh 0;
+}
+
+.chk {
+  display: flex;
+  align-items: center;
+  gap: 0.8vh;
+  font-size: 1.9vh;
+  color: var(--muted);
+  margin-bottom: 2vh;
+}
+.chk input { width: 2.2vh; height: 2.2vh; }
+
+.modal-actions {
+  display: flex;
+  gap: 1vh;
+  align-items: center;
+  justify-content: flex-end;
+}
+.modal-msg {
+  flex: 1 1 auto;
+  font-size: 1.6vh;
+  color: var(--muted);
+  text-align: left;
+}
+.btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #2E7DE0;
+  color: #fff;
+  border: 0;
+  border-radius: 0.8vh;
+  font-size: 2vh;
+  font-family: inherit;
+  font-weight: 600;
+  padding: 1.1vh 2vh;
+  cursor: pointer;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.hint {
+  font-size: 1.5vh;
+  color: var(--dim);
+  margin: 1.4vh 0 0;
+}
+
+/* ============================ 縦向きのとき ============================ */
+@media (orientation: portrait) {
+  #shift { flex-direction: column; }
+  .side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 2vw;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+    padding: 1.2vh 2vw;
+  }
+  .clock-time { font-size: 8vh; }
+  .clock-sub { font-size: 2.2vh; }
+  .cal { flex: 1 1 auto; max-width: 46vw; }
+  .next-up { display: none; }
+  .wx { flex: 0 0 auto; }
+  .wx-icon { font-size: 3.4vh; }
+  .wx-temp { font-size: 3.2vh; }
+  .board { padding: 1.2vh 2vw; }
+}
