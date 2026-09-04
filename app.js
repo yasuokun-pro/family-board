@@ -695,18 +695,28 @@ function updateNowLine() {
    10.5 月間ビュー
    ------------------------------------------------------------------ */
 var MC_MAX = 3;   // 1マスに並べる予定の最大数(超えた分は「+N」)
+var MC_NARROW_PX = 820;  // 7列÷この幅を下回ったら、文字が入らないのでドット表示にする
+
+/* 画面(ウィンドウ)の横幅で判定。iPhoneを直接持って使うときは横向きでも幅が狭く、
+   壁掛けモニターにミラーリングしたときは(同じiPhoneでも見かけ上)十分広いままなので、
+   向き(orientation)ではなく実際の幅で判定する。 */
+function isNarrowScreen() {
+  return window.innerWidth < MC_NARROW_PX;
+}
 
 function renderMonthView() {
   var view = STATE.viewDate;
   var today = startOfDay(new Date());
   var y = view.getFullYear(), m = view.getMonth();
+  var narrow = isNarrowScreen();
 
   $('board-date').textContent = y + '年' + (m + 1) + '月';
-  $('board-sub').textContent = '';
+  $('board-sub').textContent = narrow ? 'タップで詳細' : '';
 
   var first = new Date(y, m, 1);
   var gridStart = addDays(first, -first.getDay());
   var byDay = groupEventsByDay();
+  var order = memberList().concat([SHARED]);
 
   var html = '';
   for (var c = 0; c < 42; c++) {
@@ -721,17 +731,30 @@ function renderMonthView() {
 
     var evs = byDay[key] || [];
     var body = '';
-    for (var i = 0; i < Math.min(evs.length, MC_MAX); i++) {
-      var ev = evs[i];
-      var mem = memberByKey(ev.member);
-      var label = ev.allDay ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
-      body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
-    }
-    if (evs.length > MC_MAX) {
-      body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
+
+    if (narrow) {
+      // 幅が狭いときはタイトルを諦めて「誰の予定があるか」だけをドットで示す
+      var present = {};
+      for (var j = 0; j < evs.length; j++) present[evs[j].member] = true;
+      var dots = '';
+      for (var q = 0; q < order.length; q++) {
+        if (present[order[q].key]) dots += '<i style="color:' + order[q].color + '"></i>';
+      }
+      if (dots) body = '<div class="mc-dots">' + dots + '</div>';
+      if (evs.length) body += '<div class="mc-count">' + evs.length + '件</div>';
+    } else {
+      for (var i = 0; i < Math.min(evs.length, MC_MAX); i++) {
+        var ev = evs[i];
+        var mem = memberByKey(ev.member);
+        var label = ev.allDay ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
+        body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
+      }
+      if (evs.length > MC_MAX) {
+        body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
+      }
     }
 
-    html += '<div class="' + cls + '" data-date="' + key + '">' +
+    html += '<div class="' + cls + (narrow ? ' narrow' : '') + '" data-date="' + key + '">' +
               '<div class="mc-num">' + d.getDate() + '</div>' +
               '<div class="mc-evs">' + body + '</div>' +
             '</div>';
