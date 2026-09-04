@@ -161,6 +161,21 @@ WebKit固有の挙動のため。CSSプロパティの反映と、開閉ロジ�
 - ユーザーはGoogleカレンダー初心者。「片方に入れれば両方に反映されるのか」という
   質問が出た＝予定は1カレンダーに1つだけ属する、という前提から説明が必要。
 
+## ウィジェットタップがデモ表示になる不具合（2026-09-04 修正）
+
+**症状:** Scriptableウィジェットをタップすると、Safariで家族ボードが開くが
+デモ表示になっている（本番の予定が出ない）。
+
+**原因:** iOSでは「ホーム画面に追加したアプリ版」と「Safariで開いたタブ」は
+同じURLでも**localStorageが別**。⚙で設定した取得URLはアプリ版のlocalStorage
+にしか無いため、ウィジェットのタップでSafariが新規に開くと真っさらな状態になる。
+
+**修正:** [app.js](app.js) の起動時に `?endpoint=...` というクエリパラメータを
+見て、あれば `CFG.endpoint` に取り込んで保存するようにした（取り込んだら
+`history.replaceState` でURLからは消す）。[scriptable/family-board-widget.js](scriptable/family-board-widget.js)
+の `widget.url` は、この形式でURLを組み立ててタップ時に渡す。
+これでSafari側のlocalStorageが空でも、その場で正しい取得URLが設定される。
+
 ## Scriptableウィジェット（2026-09-04 追加）
 
 - `scriptable/family-board-widget.js`：自分のiPhoneのホーム画面ウィジェット用。

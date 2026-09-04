@@ -34,6 +34,9 @@ const MEMBERS = [
 ];
 
 // 家族ボードの公開URL。ウィジェットをタップしたときに開く先。
+// ホーム画面に追加した「アプリ版」とSafariで開いたタブは端末上では
+// 別々のストレージを持つため、タップ時はURLに ?endpoint=... を付けて渡し、
+// Safari側が真っさらでもデモ表示にならず本番データが出るようにしている。
 const BOARD_URL = "https://yasuokun-pro.github.io/family-board/";
 
 const KC_ENDPOINT = "familyBoardEndpoint";
@@ -414,7 +417,7 @@ async function run() {
     msg.textColor = COL_ERR;
   }
 
-  widget.url = BOARD_URL;
+  widget.url = BOARD_URL + "?endpoint=" + encodeURIComponent(endpoint);
   widget.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000);
 
   if (config.runsInWidget) {

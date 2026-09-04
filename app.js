@@ -48,6 +48,23 @@ function saveCfg(cfg) {
 
 var CFG = loadCfg();
 
+/* URLに ?endpoint=... が付いていたら、その場で設定として取り込む。
+   ホーム画面に追加した「アプリ版」とSafariで開いたタブは端末上では
+   別々のlocalStorageを持つため、ウィジェットなど外部からURLを開いたときに
+   ⚙で設定したはずの取得URLが無く、デモ表示になってしまう問題への対処。 */
+(function () {
+  try {
+    var qp = new URLSearchParams(location.search).get('endpoint');
+    if (qp) {
+      CFG.endpoint = qp;
+      saveCfg(CFG);
+      if (window.history && history.replaceState) {
+        history.replaceState(null, '', location.pathname);
+      }
+    }
+  } catch (e) {}
+})();
+
 function memberList() {
   return MEMBERS.map(function (m) {
     return { key: m.key, color: m.color, label: (CFG.labels && CFG.labels[m.key]) || m.label };
