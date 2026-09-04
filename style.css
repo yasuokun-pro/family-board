@@ -54,6 +54,7 @@ html, body {
   min-width: 20%;
   flex: 0 0 auto;
   padding: var(--pad);
+  padding-top: max(var(--pad), env(safe-area-inset-top));
   padding-left: max(var(--pad), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
@@ -279,6 +280,7 @@ html, body {
   display: flex;
   flex-direction: column;
   padding: var(--pad);
+  padding-top: max(var(--pad), env(safe-area-inset-top));
   padding-right: max(var(--pad), env(safe-area-inset-right));
   gap: 0.8vh;
 }
@@ -327,6 +329,7 @@ html, body {
   padding: 0.7vh 1.1vh;
   cursor: pointer;
   font-family: inherit;
+  touch-action: manipulation;
 }
 .icon-btn:active { background: var(--panel-2); color: var(--text); }
 
@@ -508,8 +511,10 @@ html, body {
   justify-content: center;
   z-index: 100;
   padding: 2vh;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
+  /* この背景自体はスクロールさせない。中身(.modal-box)側だけでスクロールを
+     持たせること。fixed配置のまま overflow:auto + touch慣性スクロールを付けて
+     [hidden]で出し入れすると、iOSのホーム画面アプリ(standalone)では
+     「一度閉じると二度とタップが反応しなくなる」不具合が起きるため。 */
 }
 .modal[hidden] { display: none !important; }
 
@@ -522,6 +527,7 @@ html, body {
   max-width: 86vw;
   max-height: 94vh;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   user-select: text;
   -webkit-user-select: text;
 }

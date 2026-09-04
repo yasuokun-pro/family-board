@@ -718,6 +718,16 @@ function openSettings() {
   $('modal').hidden = false;
 }
 
+/* 設定画面を閉じるときの後始末。
+   入力欄にフォーカスが残ったままだと、iOSでキーボードが完全に閉じず
+   画面の表示位置がずれたままになることがあるため、確実に解除する。 */
+function closeSettings() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $('modal').hidden = true;
+  $('modal').scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
 function saveSettings() {
   CFG.endpoint   = $('s-endpoint').value.trim();
   CFG.startHour  = parseInt($('s-start').value, 10);
@@ -769,7 +779,7 @@ function saveSettings() {
 
 function finishSave() {
   saveCfg(CFG);
-  $('modal').hidden = true;
+  closeSettings();
   STATE.events = [];
   fetchData(false);
   fetchWeather();
@@ -849,10 +859,10 @@ function init() {
     STATE.viewDate = startOfDay(new Date()); renderAll(); fetchData(false);
   });
   $('btn-settings').addEventListener('click', openSettings);
-  $('btn-close').addEventListener('click', function () { $('modal').hidden = true; });
+  $('btn-close').addEventListener('click', closeSettings);
   $('btn-save').addEventListener('click', saveSettings);
   $('modal').addEventListener('click', function (ev) {
-    if (ev.target === $('modal')) $('modal').hidden = true;
+    if (ev.target === $('modal')) closeSettings();
   });
 
   // 左右スワイプで日付移動
