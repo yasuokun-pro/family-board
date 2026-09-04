@@ -3,20 +3,69 @@
   "generatedAt": "2026-01-10T07:00:00+09:00",
   "count": 7,
   "events": [
-    { "id": "s1", "member": "son1", "title": "サッカー練習", "allDay": false,
-      "start": "2026-01-10T14:00:00+09:00", "end": "2026-01-10T16:30:00+09:00", "location": "第一グラウンド" },
-    { "id": "s2", "member": "son1", "title": "招待大会", "allDay": false,
-      "start": "2026-01-11T12:45:00+09:00", "end": "2026-01-11T17:30:00+09:00", "location": "市民球技場" },
-    { "id": "s3", "member": "father", "title": "送迎", "allDay": false,
-      "start": "2026-01-11T12:00:00+09:00", "end": "2026-01-11T13:15:00+09:00", "location": "" },
-    { "id": "s4", "member": "shared", "title": "祖父母来訪", "allDay": true,
-      "start": "2026-01-11T00:00:00+09:00", "end": "2026-01-12T00:00:00+09:00", "location": "" },
-    { "id": "s5", "member": "mother", "title": "参観日", "allDay": false,
-      "start": "2026-01-11T10:00:00+09:00", "end": "2026-01-11T11:30:00+09:00", "location": "小学校" },
-    { "id": "s6", "member": "daughter", "title": "習い事", "allDay": false,
-      "start": "2026-01-11T15:00:00+09:00", "end": "2026-01-11T16:00:00+09:00", "location": "" },
-    { "id": "s7", "member": "son2", "title": "practice", "allDay": false,
-      "start": "2026-01-12T09:00:00+09:00", "end": "2026-01-12T12:00:00+09:00", "location": "体育館" }
+    {
+      "id": "s1",
+      "member": "son1",
+      "title": "サッカー練習",
+      "allDay": false,
+      "start": "2026-01-10T14:00:00+09:00",
+      "end": "2026-01-10T16:30:00+09:00",
+      "location": "第一グラウンド"
+    },
+    {
+      "id": "s2",
+      "member": "son1",
+      "title": "招待大会",
+      "allDay": false,
+      "start": "2026-01-11T12:45:00+09:00",
+      "end": "2026-01-11T17:30:00+09:00",
+      "location": "市民球技場"
+    },
+    {
+      "id": "s3",
+      "member": "father",
+      "title": "送迎",
+      "allDay": false,
+      "start": "2026-01-11T12:00:00+09:00",
+      "end": "2026-01-11T13:15:00+09:00",
+      "location": ""
+    },
+    {
+      "id": "s4",
+      "member": "shared",
+      "title": "祖父母来訪",
+      "allDay": true,
+      "start": "2026-01-11",
+      "end": "2026-01-12",
+      "location": ""
+    },
+    {
+      "id": "s5",
+      "member": "mother",
+      "title": "参観日",
+      "allDay": false,
+      "start": "2026-01-11T10:00:00+09:00",
+      "end": "2026-01-11T11:30:00+09:00",
+      "location": "小学校"
+    },
+    {
+      "id": "s6",
+      "member": "daughter",
+      "title": "習い事",
+      "allDay": false,
+      "start": "2026-01-11T15:00:00+09:00",
+      "end": "2026-01-11T16:00:00+09:00",
+      "location": ""
+    },
+    {
+      "id": "s7",
+      "member": "son2",
+      "title": "practice",
+      "allDay": false,
+      "start": "2026-01-12T09:00:00+09:00",
+      "end": "2026-01-12T12:00:00+09:00",
+      "location": "体育館"
+    }
   ],
   "holidays": {
     "2026-01-12": "成人の日"

@@ -135,12 +135,23 @@ function setStatus(text, isErr) {
   el.className = 'status' + (isErr ? ' err' : '');
 }
 
+/* "2026-09-06" のような日付だけの文字列は、ローカルの0時として解釈する。
+   new Date("2026-09-06") はUTCの0時＝日本時間の朝9時になってしまうため、
+   終日予定が翌日にはみ出す。時刻付きのISO文字列はそのまま解釈する。 */
+function parseWhen(v, allDay) {
+  if (allDay && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    var p = v.split('-');
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), 0, 0, 0, 0);
+  }
+  return new Date(v);
+}
+
 function parseEvents(list) {
   var out = [];
   for (var i = 0; i < list.length; i++) {
     var e = list[i];
-    var s = new Date(e.start);
-    var en = new Date(e.end);
+    var s = parseWhen(e.start, e.allDay);
+    var en = parseWhen(e.end, e.allDay);
     if (isNaN(s.getTime()) || isNaN(en.getTime())) continue;
     out.push({
       id: e.id || ('e' + i),

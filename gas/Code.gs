@@ -137,16 +137,26 @@ function pull(calId, defaultMember, from, to, out, seen) {
     var clean  = byTag.title;
 
     var allDay = ev.isAllDayEvent();
-    var start = allDay ? ev.getAllDayStartDate() : ev.getStartTime();
-    var end   = allDay ? ev.getAllDayEndDate()   : ev.getEndTime();
+
+    // 終日予定は「日付だけ」で返す。時刻を付けると、カレンダーのタイムゾーンが
+    // 東京以外（UTCなど）のときに9時間ずれて2日にまたがって表示されてしまう。
+    // end は「翌日」＝終了日の翌日を指す排他的な値（Googleの仕様どおり）。
+    var start, end;
+    if (allDay) {
+      start = Utilities.formatDate(ev.getAllDayStartDate(), CONFIG.timeZone, 'yyyy-MM-dd');
+      end   = Utilities.formatDate(ev.getAllDayEndDate(),   CONFIG.timeZone, 'yyyy-MM-dd');
+    } else {
+      start = fmt(ev.getStartTime());
+      end   = fmt(ev.getEndTime());
+    }
 
     out.push({
       id: uid,
       member: member,
       title: clean,
       allDay: allDay,
-      start: fmt(start),
-      end: fmt(end),
+      start: start,
+      end: end,
       location: ev.getLocation() || ''
     });
   }
