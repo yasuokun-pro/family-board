@@ -78,6 +78,7 @@ var STATE = {
   events: [],        // {id, member, title, start:Date, end:Date, allDay, location}
   holidays: {},      // {"YYYY-MM-DD": "敬老の日"}
   viewDate: startOfDay(new Date()),
+  monthMode: false,  // true: 月間一覧 / false: 1日タイムライン
   lastFetch: 0,
   lastTouch: Date.now(),
   fetching: false
@@ -192,7 +193,7 @@ function fetchData(silent) {
   STATE.fetching = true;
   if (!silent) setStatus('更新中…');
 
-  var url = CFG.endpoint + (CFG.endpoint.indexOf('?') >= 0 ? '&' : '?') + 'days=45&_=' + Date.now();
+  var url = CFG.endpoint + (CFG.endpoint.indexOf('?') >= 0 ? '&' : '?') + 'days=90&_=' + Date.now();
 
   fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' })
     .then(function (r) {
@@ -254,6 +255,26 @@ function tickClock() {
 /* ------------------------------------------------------------------
    8. 月カレンダー
    ------------------------------------------------------------------ */
+/* 予定を開始日ごとにグループ化（複数日にまたがる予定は開始日にのみ出す） */
+function groupEventsByDay() {
+  var byDay = {};
+  for (var i = 0; i < STATE.events.length; i++) {
+    var e = STATE.events[i];
+    var k = ymd(e.start);
+    if (!byDay[k]) byDay[k] = [];
+    byDay[k].push(e);
+  }
+  for (var key in byDay) {
+    if (Object.prototype.hasOwnProperty.call(byDay, key)) {
+      byDay[key].sort(function (a, b) {
+        if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+        return a.start - b.start;
+      });
+    }
+  }
+  return byDay;
+}
+
 function renderCalendar() {
   var view = STATE.viewDate;
   var today = startOfDay(new Date());
@@ -263,15 +284,7 @@ function renderCalendar() {
 
   var first = new Date(y, m, 1);
   var gridStart = addDays(first, -first.getDay());
-
-  // 日ごとのメンバー色を集計
-  var byDay = {};
-  for (var i = 0; i < STATE.events.length; i++) {
-    var e = STATE.events[i];
-    var k = ymd(e.start);
-    if (!byDay[k]) byDay[k] = {};
-    byDay[k][e.member] = true;
-  }
+  var byDay = groupEventsByDay();
 
   var order = memberList().concat([SHARED]);
   var html = '';
@@ -286,11 +299,13 @@ function renderCalendar() {
     if (key === ymd(today)) cls += ' today';
     else if (key === ymd(view)) cls += ' viewed';
 
-    var dots = '';
+    var present = {};
     if (byDay[key]) {
-      for (var q = 0; q < order.length; q++) {
-        if (byDay[key][order[q].key]) dots += '<i style="color:' + order[q].color + '"></i>';
-      }
+      for (var j = 0; j < byDay[key].length; j++) present[byDay[key][j].member] = true;
+    }
+    var dots = '';
+    for (var q = 0; q < order.length; q++) {
+      if (present[order[q].key]) dots += '<i style="color:' + order[q].color + '"></i>';
     }
     html += '<div class="' + cls + '">' + d.getDate() +
             (dots ? '<span class="cal-dots">' + dots + '</span>' : '') + '</div>';
@@ -676,8 +691,131 @@ function updateNowLine() {
   el.style.top = ((pos / spanMin) * 100) + '%';
 }
 
+/* ------------------------------------------------------------------
+   10.5 月間ビュー
+   ------------------------------------------------------------------ */
+var MC_MAX = 3;   // 1マスに並べる予定の最大数(超えた分は「+N」)
+
+function renderMonthView() {
+  var view = STATE.viewDate;
+  var today = startOfDay(new Date());
+  var y = view.getFullYear(), m = view.getMonth();
+
+  $('board-date').textContent = y + '年' + (m + 1) + '月';
+  $('board-sub').textContent = '';
+
+  var first = new Date(y, m, 1);
+  var gridStart = addDays(first, -first.getDay());
+  var byDay = groupEventsByDay();
+
+  var html = '';
+  for (var c = 0; c < 42; c++) {
+    var d = addDays(gridStart, c);
+    var key = ymd(d);
+    var cls = 'mc';
+    if (d.getMonth() !== m) cls += ' out';
+    if (STATE.holidays[key]) cls += ' hol';
+    else if (d.getDay() === 0) cls += ' sun';
+    else if (d.getDay() === 6) cls += ' sat';
+    if (key === ymd(today)) cls += ' today';
+
+    var evs = byDay[key] || [];
+    var body = '';
+    for (var i = 0; i < Math.min(evs.length, MC_MAX); i++) {
+      var ev = evs[i];
+      var mem = memberByKey(ev.member);
+      var label = ev.allDay ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
+      body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
+    }
+    if (evs.length > MC_MAX) {
+      body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
+    }
+
+    html += '<div class="' + cls + '" data-date="' + key + '">' +
+              '<div class="mc-num">' + d.getDate() + '</div>' +
+              '<div class="mc-evs">' + body + '</div>' +
+            '</div>';
+  }
+  $('month-grid').innerHTML = html;
+
+  var cells = $('month-grid').querySelectorAll('.mc');
+  for (var k = 0; k < cells.length; k++) {
+    cells[k].addEventListener('click', function (ev) {
+      var p = ev.currentTarget.getAttribute('data-date').split('-');
+      STATE.viewDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+      setMonthMode(false);
+    });
+  }
+}
+
+function setMonthMode(on) {
+  STATE.monthMode = on;
+  $('day-view').hidden = on;
+  $('month-view').hidden = !on;
+  $('btn-month').classList.toggle('active', on);
+  renderAll();
+}
+
+/* 縦向き(自分のiPhone)専用：横並びレーンの代わりに1件ずつ読みやすく並べる */
+function isPortrait() {
+  return window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+}
+
+function renderAgenda() {
+  var day = STATE.viewDate;
+  var today = startOfDay(new Date());
+  var now = new Date();
+  var dayEvents = eventsOn(day).slice().sort(function (a, b) {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+    return a.start - b.start;
+  });
+
+  var diff = Math.round((day - today) / 86400000);
+  var label = diff === 0 ? '今日' : diff === 1 ? '明日' : diff === -1 ? '昨日' : '';
+  $('board-date').textContent = (day.getMonth() + 1) + '/' + day.getDate() + '（' + DOW[day.getDay()] + '）' + (label ? ' ' + label : '');
+  var hol = STATE.holidays[ymd(day)];
+  $('board-sub').textContent = hol ? hol : (dayEvents.length + ' 件');
+
+  if (dayEvents.length === 0) {
+    $('agenda').innerHTML = '<div class="ag-empty">予定はありません</div>';
+    return;
+  }
+
+  var order = memberList().concat([SHARED]);
+  var html = '';
+  for (var m = 0; m < order.length; m++) {
+    var mem = order[m];
+    var mine = dayEvents.filter(function (e) { return e.member === mem.key; });
+    if (mine.length === 0) continue;
+
+    html += '<div class="ag-group" style="--c:' + mem.color + '">' +
+              '<div class="ag-head"><b>' + esc(mem.label) + '</b><span>' + mine.length + '件</span></div>';
+
+    for (var i = 0; i < mine.length; i++) {
+      var ev = mine[i];
+      var isPast = !ev.allDay && ev.end < now && ymd(day) === ymd(now);
+      var time = ev.allDay ? '終日' : (hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>');
+      html += '<div class="ag-ev' + (isPast ? ' past' : '') + '">' +
+                '<div class="ag-time">' + time + '</div>' +
+                '<div class="ag-body">' +
+                  '<div class="ag-title">' + esc(ev.title) + '</div>' +
+                  (ev.location ? '<div class="ag-loc">' + esc(ev.location) + '</div>' : '') +
+                '</div>' +
+              '</div>';
+    }
+    html += '</div>';
+  }
+  $('agenda').innerHTML = html;
+}
+
 function renderAll() {
-  renderBoard();
+  if (STATE.monthMode) {
+    renderMonthView();
+  } else if (isPortrait()) {
+    renderAgenda();
+  } else {
+    renderBoard();
+  }
   renderCalendar();
   renderNextUp();
   renderWeather();
@@ -830,11 +968,13 @@ function init() {
   setInterval(burnInShift, 3 * 60000);
   setInterval(renderNextUp, 60000);
 
-  // 操作が5分止まったら自動的に今日へ戻す
+  // 操作が5分止まったら自動的に今日(1日表示)へ戻す
   setInterval(function () {
-    if (Date.now() - STATE.lastTouch > 5 * 60000 && ymd(STATE.viewDate) !== ymd(new Date())) {
+    var idle = Date.now() - STATE.lastTouch > 5 * 60000;
+    var notToday = ymd(STATE.viewDate) !== ymd(new Date());
+    if (idle && (STATE.monthMode || notToday)) {
       STATE.viewDate = startOfDay(new Date());
-      renderAll();
+      if (STATE.monthMode) { setMonthMode(false); } else { renderAll(); }
     }
   }, 30000);
 
@@ -850,13 +990,30 @@ function init() {
   document.addEventListener('click', touched);
 
   $('btn-prev').addEventListener('click', function () {
-    STATE.viewDate = addDays(STATE.viewDate, -1); renderAll();
+    if (STATE.monthMode) {
+      var d = STATE.viewDate;
+      STATE.viewDate = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    } else {
+      STATE.viewDate = addDays(STATE.viewDate, -1);
+    }
+    renderAll();
   });
   $('btn-next').addEventListener('click', function () {
-    STATE.viewDate = addDays(STATE.viewDate, 1); renderAll();
+    if (STATE.monthMode) {
+      var d2 = STATE.viewDate;
+      STATE.viewDate = new Date(d2.getFullYear(), d2.getMonth() + 1, 1);
+    } else {
+      STATE.viewDate = addDays(STATE.viewDate, 1);
+    }
+    renderAll();
   });
   $('btn-today').addEventListener('click', function () {
-    STATE.viewDate = startOfDay(new Date()); renderAll(); fetchData(false);
+    STATE.viewDate = startOfDay(new Date());
+    if (STATE.monthMode) { setMonthMode(false); } else { renderAll(); }
+    fetchData(false);
+  });
+  $('btn-month').addEventListener('click', function () {
+    setMonthMode(!STATE.monthMode);
   });
   $('btn-settings').addEventListener('click', openSettings);
   $('btn-close').addEventListener('click', closeSettings);
@@ -875,7 +1032,12 @@ function init() {
     var dx = e.changedTouches[0].clientX - sx;
     var dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
-      STATE.viewDate = addDays(STATE.viewDate, dx < 0 ? 1 : -1);
+      if (STATE.monthMode) {
+        var dm = STATE.viewDate;
+        STATE.viewDate = new Date(dm.getFullYear(), dm.getMonth() + (dx < 0 ? 1 : -1), 1);
+      } else {
+        STATE.viewDate = addDays(STATE.viewDate, dx < 0 ? 1 : -1);
+      }
       renderAll();
     }
   }, { passive: true });

@@ -62,22 +62,34 @@
       </div>
       <div class="board-tools">
         <span class="status" id="status">読み込み中…</span>
-        <button class="icon-btn" id="btn-prev" title="前の日">‹</button>
+        <button class="icon-btn" id="btn-prev" title="前へ">‹</button>
         <button class="icon-btn" id="btn-today" title="今日へ">今日</button>
-        <button class="icon-btn" id="btn-next" title="次の日">›</button>
+        <button class="icon-btn" id="btn-next" title="次へ">›</button>
+        <button class="icon-btn" id="btn-month" title="月間表示">月</button>
         <button class="icon-btn" id="btn-settings" title="設定">⚙</button>
       </div>
     </div>
 
-    <div class="lanes-head" id="lanes-head"></div>
-    <div class="allday" id="allday"></div>
+    <div class="day-view" id="day-view">
+      <div class="lanes-head" id="lanes-head"></div>
+      <div class="allday" id="allday"></div>
 
-    <div class="tl-wrap">
-      <div class="tl" id="tl">
-        <div class="axis" id="axis"></div>
-        <div class="lanes" id="lanes"></div>
-        <div class="nowline" id="nowline"><span class="nowdot"></span></div>
+      <div class="tl-wrap">
+        <div class="tl" id="tl">
+          <div class="axis" id="axis"></div>
+          <div class="lanes" id="lanes"></div>
+          <div class="nowline" id="nowline"><span class="nowdot"></span></div>
+        </div>
       </div>
+
+      <div class="agenda" id="agenda"></div>
+    </div>
+
+    <div class="month-view" id="month-view" hidden>
+      <div class="month-dow">
+        <span class="sun">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span>
+      </div>
+      <div class="month-grid" id="month-grid"></div>
     </div>
   </main>
 

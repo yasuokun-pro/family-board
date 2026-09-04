@@ -277,6 +277,7 @@ html, body {
 .board {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: var(--pad);
@@ -332,6 +333,11 @@ html, body {
   touch-action: manipulation;
 }
 .icon-btn:active { background: var(--panel-2); color: var(--text); }
+.icon-btn.active {
+  background: var(--panel-2);
+  color: var(--text);
+  border-color: var(--text);
+}
 
 /* --- レーン見出し --- */
 .lanes-head {
@@ -498,6 +504,98 @@ html, body {
   width: 1.1vh; height: 1.1vh;
   border-radius: 50%;
   background: var(--now);
+}
+
+/* ============================ 月間ビュー ============================ */
+.day-view {
+  display: contents;
+}
+.day-view[hidden] { display: none; }
+
+.month-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
+}
+.month-view[hidden] { display: none; }
+
+.month-dow {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.month-dow span {
+  text-align: center;
+  font-size: 1.8vh;
+  color: var(--dim);
+  padding-bottom: 0.3vh;
+}
+.month-dow .sun { color: #B26A6A; }
+.month-dow .sat { color: #5D7EA6; }
+
+.month-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 0.5vh;
+}
+
+.mc {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 0.8vh;
+  padding: 0.5vh 0.6vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+.mc.out { opacity: 0.35; }
+.mc.today { box-shadow: inset 0 0 0 0.22vh #E6EDF5; }
+
+.mc-num {
+  flex: 0 0 auto;
+  font-size: 1.9vh;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.mc.sun .mc-num { color: var(--sun); }
+.mc.sat .mc-num { color: var(--sat); }
+.mc.hol .mc-num { color: var(--sun); }
+
+.mc-evs {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2vh;
+  overflow: hidden;
+}
+.mc-ev {
+  flex: 0 0 auto;
+  font-size: 1.5vh;
+  line-height: 1.35;
+  padding: 0.05vh 0.4vh;
+  border-radius: 0.35vh;
+  background: var(--c-bg);
+  color: var(--c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mc-more {
+  flex: 0 0 auto;
+  font-size: 1.4vh;
+  color: var(--dim);
+  padding-left: 0.4vh;
 }
 
 /* ============================ 設定モーダル ============================ */
@@ -669,23 +767,91 @@ html, body {
 }
 
 /* ============================ 縦向きのとき ============================ */
+/* 縦向き＝各自のiPhoneで手に持って予定を確認する用途と想定し、
+   時計・カレンダー・天気は隠して予定表示だけに絞る
+   （壁掛け設置は常に横向きなので、時計類はそちら専用になる）。
+   横並びレーンは6列を細い画面に押し込むと文字が読めなくなるため、
+   縦向きでは使わず、1件ずつ縦に並ぶアジェンダ形式に切り替える。 */
+.agenda { display: none; }
+
 @media (orientation: portrait) {
   #shift { flex-direction: column; }
-  .side {
+  .side { display: none; }
+  .board {
     width: 100%;
-    flex-direction: row;
-    align-items: center;
-    gap: 2vw;
-    border-right: 0;
-    border-bottom: 1px solid var(--line-soft);
     padding: 1.2vh 2vw;
+    padding-top: max(1.2vh, env(safe-area-inset-top));
   }
-  .clock-time { font-size: 8vh; }
-  .clock-sub { font-size: 2.2vh; }
-  .cal { flex: 1 1 auto; max-width: 46vw; }
-  .next-up { display: none; }
-  .wx { flex: 0 0 auto; }
-  .wx-icon { font-size: 3.4vh; }
-  .wx-temp { font-size: 3.2vh; }
-  .board { padding: 1.2vh 2vw; }
+  .board-title { font-size: 2.6vh; }
+
+  .lanes-head, .allday, .tl-wrap { display: none; }
+  .agenda {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* --- アジェンダ（縦向き専用の一覧表示） --- */
+.ag-group { margin-bottom: 1.4rem; }
+.ag-group:last-child { margin-bottom: 0; }
+
+.ag-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  margin-bottom: 0.5rem;
+  border-bottom: 2px solid var(--c);
+}
+.ag-head b {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--c);
+}
+.ag-head span {
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+
+.ag-ev {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.6rem 0.2rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ag-ev:last-child { border-bottom: none; }
+.ag-ev.past { opacity: 0.45; }
+
+.ag-time {
+  flex: 0 0 auto;
+  width: 3.6rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  line-height: 1.3;
+  padding-top: 0.05rem;
+}
+.ag-time small { display: block; font-size: 0.72rem; color: var(--dim); }
+
+.ag-body { flex: 1 1 auto; min-width: 0; }
+.ag-title {
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+}
+.ag-loc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.ag-empty {
+  text-align: center;
+  color: var(--dim);
+  font-size: 0.95rem;
+  padding: 3rem 0;
 }
