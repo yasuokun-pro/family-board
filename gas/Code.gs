@@ -42,6 +42,12 @@ var CONFIG = {
     'family02965375801837896526@group.calendar.google.com'
   ],
 
+  /* ここに入れたカレンダーからは「目印(tags)か色が付いた予定だけ」を取り込みます。
+     個人カレンダーのように、Gmailが自動で作る宿やレストランの予約が混ざる場所を
+     ボードに出したいときに使います。目印の無い予定は丸ごと無視されます。
+     例: ['自分のアドレス@gmail.com'] */
+  tagOnlyCalendars: [],
+
   /* 祝日カレンダー（時計の下と月カレンダーの色に使用）。不要なら '' に。 */
   holidayCalendar: 'ja.japanese#holiday@group.v.calendar.google.com',
 
@@ -98,20 +104,26 @@ function collectEvents(from, to) {
   for (var i = 0; i < CONFIG.members.length; i++) {
     var m = CONFIG.members[i];
     for (var c = 0; c < m.calendars.length; c++) {
-      pull(m.calendars[c], m.key, from, to, out, seen);
+      pull(m.calendars[c], m.key, from, to, out, seen, false);
     }
   }
 
   // 2. 家族共通カレンダー（タグ・色で振り分け、無ければ「みんな」）
   for (var s = 0; s < CONFIG.sharedCalendars.length; s++) {
-    pull(CONFIG.sharedCalendars[s], null, from, to, out, seen);
+    pull(CONFIG.sharedCalendars[s], null, from, to, out, seen, false);
+  }
+
+  // 3. 目印の付いた予定だけを拾うカレンダー（個人カレンダーなど）
+  var tagOnly = CONFIG.tagOnlyCalendars || [];
+  for (var t = 0; t < tagOnly.length; t++) {
+    pull(tagOnly[t], null, from, to, out, seen, true);
   }
 
   out.sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   return out;
 }
 
-function pull(calId, defaultMember, from, to, out, seen) {
+function pull(calId, defaultMember, from, to, out, seen, tagOnly) {
   var cal = CalendarApp.getCalendarById(calId);
   if (!cal) {
     Logger.log('カレンダーが見つかりません: ' + calId);
@@ -132,6 +144,9 @@ function pull(calId, defaultMember, from, to, out, seen) {
 
     var byColor = memberByColor(safeColor(ev));
     var byTag   = memberByTag(title);
+
+    // 目印が無い予定を切り捨てるカレンダー（個人カレンダーなど）
+    if (tagOnly && !byTag.key && !byColor) continue;
 
     var member = byTag.key || byColor || defaultMember || 'shared';
     var clean  = byTag.title;
