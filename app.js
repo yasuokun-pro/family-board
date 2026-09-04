@@ -716,7 +716,6 @@ function renderMonthView() {
   var first = new Date(y, m, 1);
   var gridStart = addDays(first, -first.getDay());
   var byDay = groupEventsByDay();
-  var order = memberList().concat([SHARED]);
 
   var html = '';
   for (var c = 0; c < 42; c++) {
@@ -732,26 +731,17 @@ function renderMonthView() {
     var evs = byDay[key] || [];
     var body = '';
 
-    if (narrow) {
-      // 幅が狭いときはタイトルを諦めて「誰の予定があるか」だけをドットで示す
-      var present = {};
-      for (var j = 0; j < evs.length; j++) present[evs[j].member] = true;
-      var dots = '';
-      for (var q = 0; q < order.length; q++) {
-        if (present[order[q].key]) dots += '<i style="color:' + order[q].color + '"></i>';
-      }
-      if (dots) body = '<div class="mc-dots">' + dots + '</div>';
-      if (evs.length) body += '<div class="mc-count">' + evs.length + '件</div>';
-    } else {
-      for (var i = 0; i < Math.min(evs.length, MC_MAX); i++) {
-        var ev = evs[i];
-        var mem = memberByKey(ev.member);
-        var label = ev.allDay ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
-        body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
-      }
-      if (evs.length > MC_MAX) {
-        body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
-      }
+    // 幅が狭いとき(手元のiPhoneなど)は時刻を省いてタイトルだけにし、
+    // 文字サイズを小さくして5文字程度は読めるようにする(狭い画面向けCSSは
+    // .mc.narrow .mc-ev 側で調整)。時刻を入れると2文字しか入らず判読できないため。
+    for (var i = 0; i < Math.min(evs.length, MC_MAX); i++) {
+      var ev = evs[i];
+      var mem = memberByKey(ev.member);
+      var label = (ev.allDay || narrow) ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
+      body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
+    }
+    if (evs.length > MC_MAX) {
+      body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
     }
 
     html += '<div class="' + cls + (narrow ? ' narrow' : '') + '" data-date="' + key + '">' +

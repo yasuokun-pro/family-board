@@ -604,27 +604,19 @@ html, body {
   padding-left: 0.4vh;
 }
 
-/* 幅が狭い画面向け：タイトルの代わりに「誰の予定があるか」をドットで示す */
-.mc.narrow { padding: 0.6vh 0.5vh; }
-.mc.narrow .mc-num { font-size: max(1.9vh, 15px); }
-.mc-dots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 2px;
+/* 幅が狭い画面向け：時刻を省いてタイトルだけにし、文字を小さくして
+   5文字程度は読めるようにする(px指定。vhだと縦画面の高さ基準で
+   横幅と噛み合わないため、ここだけは実測して固定値にしている)。 */
+.mc.narrow { padding: 3px 2px; }
+.mc.narrow .mc-num { font-size: 13px; }
+.mc.narrow .mc-ev {
+  font-size: 8px;
+  line-height: 1.4;
+  padding: 1px 1px;
+  border-radius: 2px;
+  letter-spacing: -0.02em;
 }
-.mc-dots i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  display: block;
-}
-.mc-count {
-  font-size: 11px;
-  color: var(--dim);
-  margin-top: 2px;
-}
+.mc.narrow .mc-more { font-size: 8px; }
 
 /* ============================ 設定モーダル ============================ */
 
