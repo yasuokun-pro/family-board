@@ -31,7 +31,7 @@ var CONFIG = {
   members: [
     { key: 'father',   tags: ['父', 'パパ', 'とうさん'],   calendars: [], colorIds: [] },
     { key: 'mother',   tags: ['母', 'ママ', 'かあさん'],   calendars: [], colorIds: [] },
-    { key: 'son1',     tags: ['長男', '兄'],               calendars: [], colorIds: [] },
+    { key: 'son1',     tags: ['長男', '兄', '2年生'],      calendars: [], colorIds: [] },
     { key: 'son2',     tags: ['次男', '弟'],               calendars: [], colorIds: [] },
     { key: 'daughter', tags: ['長女', '妹'],               calendars: [], colorIds: [] }
   ],
