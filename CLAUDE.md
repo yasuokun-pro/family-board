@@ -161,6 +161,23 @@ WebKit固有の挙動のため。CSSプロパティの反映と、開閉ロジ�
 - ユーザーはGoogleカレンダー初心者。「片方に入れれば両方に反映されるのか」という
   質問が出た＝予定は1カレンダーに1つだけ属する、という前提から説明が必要。
 
+## Scriptableウィジェット（2026-09-04 追加）
+
+- `scriptable/family-board-widget.js`：自分のiPhoneのホーム画面ウィジェット用。
+  iOSのWidgetKitはWebページを埋め込めない(WebView禁止)ため、家族ボードの
+  PWA本体とは別に、同じGAS JSONエンドポイントを叩いてJavaScriptで
+  描き直す構成にした。母艦はPWA、ウィジェットは軽量な別クライアント。
+- Xcode/開発者登録なしで作れる「Scriptable」アプリ(無料)向け。取得URLは
+  Scriptable側の `Keychain` に保存する(このリポジトリには書かない、という
+  PWA本体と同じ設計方針を踏襲)。
+- **実機・シミュレータでの動作確認はできていない**（このMacにフルXcode構成が
+  無くiOS Simulatorが使えず、Scriptable自体もこのマシンでは動かせないため）。
+  構文チェックは `osascript -l JavaScript`(JavaScriptCore、Scriptableと同じ
+  エンジン系統)で通した。Scriptable固有API(`WidgetStack.size`で列幅を
+  揃える等)は資料に基づく実装だが未検証。ユーザーに実機での確認を依頼する。
+- 終日予定の日付のみ文字列パース(`parseWhen`)、失敗時に前回データへ
+  フォールバックする設計は、意図的にPWA本体([app.js](app.js))と揃えてある。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）
