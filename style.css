@@ -657,7 +657,7 @@ html, body {
   font-weight: 600;
 }
 .fld { display: block; margin-bottom: 1.6vh; }
-.fld > span {
+.fld > span, .fld > label > span {
   display: block;
   font-size: 1.8vh;
   color: var(--muted);
@@ -669,7 +669,7 @@ html, body {
   color: var(--dim);
   margin-top: 0.4vh;
 }
-.fld input[type="url"], .fld input[type="text"], .fld select {
+.fld input[type="url"], .fld input[type="text"], .fld select, .fld textarea {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
@@ -681,6 +681,7 @@ html, body {
   font-size: 2vh;
   font-family: inherit;
 }
+.fld textarea { resize: vertical; }
 .fld-row { display: flex; gap: 1.2vh; }
 .fld-row .fld { flex: 1 1 0; }
 .fld-row .fld-row { flex: 2 1 0; }
@@ -805,6 +806,12 @@ html, body {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--line);
+}
+.btn.danger {
+  background: transparent;
+  color: var(--sun);
+  border: 1px solid var(--sun);
+  margin-right: auto;
 }
 .hint {
   font-size: 1.5vh;

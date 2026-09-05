@@ -173,12 +173,14 @@ function parseEvents(list) {
     if (isNaN(s.getTime()) || isNaN(en.getTime())) continue;
     out.push({
       id: e.id || ('e' + i),
+      calId: e.calId || '',
       member: e.member || 'shared',
       title: e.title || '(無題)',
       allDay: !!e.allDay,
       start: s,
       end: en,
-      location: e.location || ''
+      location: e.location || '',
+      description: e.description || ''
     });
   }
   return out;
@@ -825,7 +827,7 @@ function renderAgenda() {
       var ev = mine[i];
       var isPast = !ev.allDay && ev.end < now && ymd(day) === ymd(now);
       var time = ev.allDay ? '終日' : (hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>');
-      html += '<div class="ag-ev' + (isPast ? ' past' : '') + '">' +
+      html += '<div class="ag-ev' + (isPast ? ' past' : '') + '" data-id="' + esc(ev.id) + '">' +
                 '<div class="ag-time">' + time + '</div>' +
                 '<div class="ag-body">' +
                   '<div class="ag-title">' + esc(ev.title) + '</div>' +
@@ -836,6 +838,24 @@ function renderAgenda() {
     html += '</div>';
   }
   $('agenda').innerHTML = html;
+}
+
+function eventById(id) {
+  for (var i = 0; i < STATE.events.length; i++) {
+    if (STATE.events[i].id === id) return STATE.events[i];
+  }
+  return null;
+}
+
+/* アジェンダの予定タップで編集を開く。ここも予定追加のメンバーピルと
+   同じ理由(委譲の方が個別リスナーより取りこぼしに強い)で委譲方式にする。 */
+function initAgendaTap() {
+  $('agenda').addEventListener('click', function (ev) {
+    var row = ev.target.closest('.ag-ev');
+    if (!row) return;
+    var found = eventById(row.getAttribute('data-id'));
+    if (found) openEditEvent(found);
+  });
 }
 
 function renderAll() {
@@ -983,10 +1003,18 @@ function initAddMemberPicker() {
   });
 }
 
+/* 編集中の予定。null なら新規追加、値があれば「その予定を編集中」。 */
+STATE.editingEvent = null;
+
 function openAddEvent() {
+  STATE.editingEvent = null;
+  $('ae-heading').textContent = '予定を追加';
+  $('ae-save').textContent = '追加する';
+  $('ae-delete').hidden = true;
   $('ae-msg').textContent = '';
   $('ae-title').value = '';
   $('ae-location').value = '';
+  $('ae-memo').value = '';
   $('ae-allday').checked = false;
   $('ae-time-row').hidden = false;
   $('ae-date').value = ymd(STATE.viewDate);
@@ -996,52 +1024,119 @@ function openAddEvent() {
   $('modal-add').hidden = false;
 }
 
+/* 既存の予定をタップしたときに呼ばれる。同じフォームを編集モードで開く。 */
+function openEditEvent(ev) {
+  STATE.editingEvent = ev;
+  $('ae-heading').textContent = '予定を編集';
+  $('ae-save').textContent = '更新する';
+  $('ae-delete').hidden = false;
+  $('ae-msg').textContent = '';
+  $('ae-title').value = ev.title;
+  $('ae-location').value = ev.location || '';
+  $('ae-memo').value = ev.description || '';
+  $('ae-allday').checked = ev.allDay;
+  $('ae-time-row').hidden = ev.allDay;
+  $('ae-date').value = ymd(ev.start);
+  $('ae-start').value = ev.allDay ? '09:00' : hhmm(ev.start);
+  $('ae-end').value = ev.allDay ? '10:00' : hhmm(ev.end);
+  renderAddMemberPicker(ev.member);
+  $('modal-add').hidden = false;
+}
+
 function closeAddEvent() {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  STATE.editingEvent = null;
   $('modal-add').hidden = true;
   $('modal-add').scrollTop = 0;
   window.scrollTo(0, 0);
 }
 
-function submitAddEvent() {
+function readAddEventForm() {
   var sel = $('ae-members').querySelector('.am-pick.sel');
-  var member = sel ? sel.getAttribute('data-key') : null;
-  var title = $('ae-title').value.trim();
-  var allDay = $('ae-allday').checked;
-  var date = $('ae-date').value;
-  var start = $('ae-start').value;
-  var end = $('ae-end').value;
-  var location = $('ae-location').value.trim();
+  return {
+    member: sel ? sel.getAttribute('data-key') : null,
+    title: $('ae-title').value.trim(),
+    allDay: $('ae-allday').checked,
+    date: $('ae-date').value,
+    start: $('ae-start').value,
+    end: $('ae-end').value,
+    location: $('ae-location').value.trim(),
+    memo: $('ae-memo').value.trim()
+  };
+}
 
-  if (!CFG.endpoint) { $('ae-msg').textContent = '⚙で取得URLを設定すると使えます（デモ表示中は追加できません）'; return; }
-  if (!member) { $('ae-msg').textContent = '誰の予定か選んでください'; return; }
-  if (!title) { $('ae-msg').textContent = 'タイトルを入れてください'; return; }
-  if (!date) { $('ae-msg').textContent = '日付を選んでください'; return; }
-  if (!allDay && (!start || !end)) { $('ae-msg').textContent = '開始・終了の時刻を入れてください'; return; }
-  if (!allDay && start >= end) { $('ae-msg').textContent = '終了時刻は開始時刻より後にしてください'; return; }
+function validateAddEventForm(f) {
+  if (!CFG.endpoint) return '⚙で取得URLを設定すると使えます（デモ表示中は追加できません）';
+  if (!f.member) return '誰の予定か選んでください';
+  if (!f.title) return 'タイトルを入れてください';
+  if (!f.date) return '日付を選んでください';
+  if (!f.allDay && (!f.start || !f.end)) return '開始・終了の時刻を入れてください';
+  if (!f.allDay && f.start >= f.end) return '終了時刻は開始時刻より後にしてください';
+  return null;
+}
 
-  $('ae-msg').textContent = '追加しています…';
+function submitAddEvent() {
+  var f = readAddEventForm();
+  var err = validateAddEventForm(f);
+  if (err) { $('ae-msg').textContent = err; return; }
+
+  var payload = {
+    member: f.member, title: f.title, allDay: f.allDay,
+    date: f.date, startTime: f.start, endTime: f.end,
+    location: f.location, description: f.memo
+  };
+  if (STATE.editingEvent) {
+    payload.action = 'update';
+    payload.id = STATE.editingEvent.id;
+    payload.calId = STATE.editingEvent.calId;
+  }
+
+  $('ae-msg').textContent = STATE.editingEvent ? '更新しています…' : '追加しています…';
   $('ae-save').disabled = true;
+  $('ae-delete').disabled = true;
 
   fetch(CFG.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      member: member, title: title, allDay: allDay,
-      date: date, startTime: start, endTime: end, location: location
-    })
+    body: JSON.stringify(payload)
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      if (!data.ok) throw new Error(data.error || '追加に失敗しました');
+      if (!data.ok) throw new Error(data.error || '保存に失敗しました');
       closeAddEvent();
       STATE.events = [];
       fetchData(false);
     })
     .catch(function (e) {
-      $('ae-msg').textContent = '追加できません: ' + String(e.message || e).slice(0, 60);
+      $('ae-msg').textContent = '保存できません: ' + String(e.message || e).slice(0, 60);
     })
-    .then(function () { $('ae-save').disabled = false; });
+    .then(function () { $('ae-save').disabled = false; $('ae-delete').disabled = false; });
+}
+
+function deleteCurrentEvent() {
+  if (!STATE.editingEvent) return;
+  if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title)) return;
+
+  $('ae-msg').textContent = '削除しています…';
+  $('ae-save').disabled = true;
+  $('ae-delete').disabled = true;
+
+  fetch(CFG.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'delete', id: STATE.editingEvent.id, calId: STATE.editingEvent.calId })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || '削除に失敗しました');
+      closeAddEvent();
+      STATE.events = [];
+      fetchData(false);
+    })
+    .catch(function (e) {
+      $('ae-msg').textContent = '削除できません: ' + String(e.message || e).slice(0, 60);
+    })
+    .then(function () { $('ae-save').disabled = false; $('ae-delete').disabled = false; });
 }
 
 /* ------------------------------------------------------------------
@@ -1146,7 +1241,9 @@ function init() {
   $('btn-add').addEventListener('click', openAddEvent);
   $('ae-close').addEventListener('click', closeAddEvent);
   $('ae-save').addEventListener('click', submitAddEvent);
+  $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
+  initAgendaTap();
   $('ae-allday').addEventListener('change', function () {
     $('ae-time-row').hidden = this.checked;
   });

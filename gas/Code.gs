@@ -97,13 +97,17 @@ function doGet(e) {
 }
 
 /* ---------------------------------------------------------------------
-   予定の追加（家族ボードの「＋」から呼ばれる）
+   予定の追加・編集・削除（家族ボードの「＋」／予定タップから呼ばれる）
 
    POSTの本文はJSON文字列（Content-Type: text/plain で送る決まり。
    application/json にすると、iOSのSafari/GASの組み合わせでCORSの
    プリフライトが通らないことがあるため、あえて text/plain にしている）。
 
-   { member, title, allDay, date, startTime, endTime, location }
+   追加: { member, title, allDay, date, startTime, endTime, location, description }
+   更新: 上記 + { action:'update', id, calId }
+   削除: { action:'delete', id, calId }
+
+   id/calId は doGet が返す予定データの id/calId をそのまま返すこと。
    --------------------------------------------------------------------- */
 function doPost(e) {
   try {
@@ -113,42 +117,99 @@ function doPost(e) {
       return json({ ok: false, error: 'unauthorized' });
     }
 
-    var title = String(body.title || '').trim();
-    if (!title) return json({ ok: false, error: 'タイトルが空です' });
-    if (!body.date) return json({ ok: false, error: '日付が指定されていません' });
-
-    var memberDef = null;
-    for (var i = 0; i < CONFIG.members.length; i++) {
-      if (CONFIG.members[i].key === body.member) { memberDef = CONFIG.members[i]; break; }
-    }
-    var fullTitle = memberDef ? ('【' + memberDef.tags[0] + '】' + title) : title;
-
-    // 書き込み先：その人専用のカレンダーがあればそこへ、無ければ共通カレンダーへ。
-    var calId = (memberDef && memberDef.calendars && memberDef.calendars[0])
-              || CONFIG.sharedCalendars[0];
-    if (!calId) return json({ ok: false, error: '書き込み先のカレンダーが設定されていません' });
-
-    var cal = CalendarApp.getCalendarById(calId);
-    if (!cal) return json({ ok: false, error: 'カレンダーが見つかりません: ' + calId });
-
-    var ev;
-    if (body.allDay) {
-      var d = parseYmd(body.date);
-      ev = cal.createAllDayEvent(fullTitle, d, { location: body.location || '' });
-    } else {
-      if (!body.startTime || !body.endTime) {
-        return json({ ok: false, error: '開始・終了の時刻が指定されていません' });
-      }
-      var start = parseYmdHm(body.date, body.startTime);
-      var end = parseYmdHm(body.date, body.endTime);
-      if (!(end > start)) return json({ ok: false, error: '終了時刻は開始時刻より後にしてください' });
-      ev = cal.createEvent(fullTitle, start, end, { location: body.location || '' });
+    if (body.action === 'delete') {
+      if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
+      var target = findRawEvent(body.id, body.calId);
+      if (!target) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
+      target.deleteEvent();
+      return json({ ok: true });
     }
 
-    return json({ ok: true, id: ev.getId() });
+    // 追加・更新とも、まず新しい内容を検証してから書き込む
+    // （更新で先に古い予定を消してしまい、検証エラーで内容だけ消える事故を防ぐため）。
+    var fields = buildEventFields(body);
+
+    if (body.action === 'update') {
+      if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
+      var old = findRawEvent(body.id, body.calId);
+      if (!old) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
+      old.deleteEvent();
+    }
+
+    var created = createEventInCalendar(fields);
+    return json({ ok: true, id: created.getId() });
 
   } catch (err) {
-    return json({ ok: false, error: String(err) });
+    return json({ ok: false, error: String(err && err.message || err) });
+  }
+}
+
+/* 入力内容を検証し、書き込みに必要な情報を組み立てる。
+   エラーがあれば例外を投げる（doPost側でcatchしてエラー応答にする）。 */
+function buildEventFields(body) {
+  var title = String(body.title || '').trim();
+  if (!title) throw new Error('タイトルが空です');
+  if (!body.date) throw new Error('日付が指定されていません');
+
+  var memberDef = null;
+  for (var i = 0; i < CONFIG.members.length; i++) {
+    if (CONFIG.members[i].key === body.member) { memberDef = CONFIG.members[i]; break; }
+  }
+  var fullTitle = memberDef ? ('【' + memberDef.tags[0] + '】' + title) : title;
+
+  // 書き込み先：その人専用のカレンダーがあればそこへ、無ければ共通カレンダーへ。
+  var calId = (memberDef && memberDef.calendars && memberDef.calendars[0])
+            || CONFIG.sharedCalendars[0];
+  if (!calId) throw new Error('書き込み先のカレンダーが設定されていません');
+
+  var f = {
+    calId: calId,
+    fullTitle: fullTitle,
+    location: body.location || '',
+    description: body.description || '',
+    allDay: !!body.allDay
+  };
+
+  if (f.allDay) {
+    f.date = parseYmd(body.date);
+  } else {
+    if (!body.startTime || !body.endTime) throw new Error('開始・終了の時刻が指定されていません');
+    f.start = parseYmdHm(body.date, body.startTime);
+    f.end = parseYmdHm(body.date, body.endTime);
+    if (!(f.end > f.start)) throw new Error('終了時刻は開始時刻より後にしてください');
+  }
+  return f;
+}
+
+function createEventInCalendar(f) {
+  var cal = CalendarApp.getCalendarById(f.calId);
+  if (!cal) throw new Error('カレンダーが見つかりません: ' + f.calId);
+
+  if (f.allDay) {
+    return cal.createAllDayEvent(f.fullTitle, f.date, { location: f.location, description: f.description });
+  }
+  return cal.createEvent(f.fullTitle, f.start, f.end, { location: f.location, description: f.description });
+}
+
+/* doGetが返す複合id("実イベントID@開始時刻ms")とcalIdから、
+   実際のCalendarEventを引き当てる。実イベントID自体に"@"を含むことが
+   多い(例: xxxx@google.com)ため、最後の"@"で区切る。 */
+function findRawEvent(compositeId, calId) {
+  var s = String(compositeId);
+  var idx = s.lastIndexOf('@');
+  var rawId = idx >= 0 ? s.substring(0, idx) : s;
+
+  try {
+    if (calId) {
+      var cal = CalendarApp.getCalendarById(calId);
+      if (cal) {
+        var ev = cal.getEventById(rawId);
+        if (ev) return ev;
+      }
+    }
+    return CalendarApp.getEventById(rawId);
+  } catch (e) {
+    return null;
   }
 }
 
@@ -235,12 +296,14 @@ function pull(calId, defaultMember, from, to, out, seen, tagOnly) {
 
     out.push({
       id: uid,
+      calId: calId,
       member: member,
       title: clean,
       allDay: allDay,
       start: start,
       end: end,
-      location: ev.getLocation() || ''
+      location: ev.getLocation() || '',
+      description: ev.getDescription() || ''
     });
   }
 }
