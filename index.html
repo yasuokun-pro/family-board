@@ -66,6 +66,7 @@
         <button class="icon-btn" id="btn-today" title="今日へ">今日</button>
         <button class="icon-btn" id="btn-next" title="次へ">›</button>
         <button class="icon-btn" id="btn-month" title="月間表示">月</button>
+        <button class="icon-btn" id="btn-add" title="予定を追加">＋</button>
         <button class="icon-btn" id="btn-settings" title="設定">⚙</button>
       </div>
     </div>
@@ -93,6 +94,58 @@
     </div>
   </main>
 
+</div>
+
+<!-- ============ 予定を追加パネル ============ -->
+<div class="modal" id="modal-add" hidden>
+  <div class="modal-box">
+    <h2>予定を追加</h2>
+
+    <label class="fld">
+      <span>誰の予定？</span>
+      <div class="am-picks" id="ae-members"></div>
+    </label>
+
+    <label class="fld">
+      <span>タイトル</span>
+      <input type="text" id="ae-title" placeholder="例: サッカー練習" autocapitalize="off" autocorrect="off">
+    </label>
+
+    <label class="chk">
+      <input type="checkbox" id="ae-allday">
+      <span>終日の予定</span>
+    </label>
+
+    <div class="fld-row">
+      <label class="fld">
+        <span>日付</span>
+        <input type="date" id="ae-date">
+      </label>
+      <div class="fld-row" id="ae-time-row">
+        <label class="fld">
+          <span>開始</span>
+          <input type="time" id="ae-start" value="09:00">
+        </label>
+        <label class="fld">
+          <span>終了</span>
+          <input type="time" id="ae-end" value="10:00">
+        </label>
+      </div>
+    </div>
+
+    <label class="fld">
+      <span>場所（任意）</span>
+      <input type="text" id="ae-location" placeholder="例: 河川敷グラウンド" autocapitalize="off" autocorrect="off">
+    </label>
+
+    <div class="modal-actions">
+      <span class="modal-msg" id="ae-msg"></span>
+      <button class="btn ghost" id="ae-close">閉じる</button>
+      <button class="btn" id="ae-save">追加する</button>
+    </div>
+
+    <p class="hint">Googleカレンダーの「ファミリー カレンダー」に直接書き込みます。すぐに家族全員の画面に反映されます（壁掛けボードは次の自動更新まで最大5分）。</p>
+  </div>
 </div>
 
 <!-- ============ 設定パネル ============ -->

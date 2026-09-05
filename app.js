@@ -954,6 +954,92 @@ function finishSave() {
 }
 
 /* ------------------------------------------------------------------
+   11.5 予定を追加
+   Googleカレンダーの「ファミリー カレンダー」に直接書き込む。
+   GAS(doPost)へJSONを送るが、Content-Typeは text/plain にすること。
+   application/json にすると、iOS Safari + GAS の組み合わせで
+   CORSプリフライトが通らず失敗することがあるため。
+   ------------------------------------------------------------------ */
+function renderAddMemberPicker(selectedKey) {
+  var all = memberList().concat([SHARED]);
+  var html = '';
+  for (var i = 0; i < all.length; i++) {
+    var m = all[i];
+    html += '<button type="button" class="am-pick' + (m.key === selectedKey ? ' sel' : '') +
+            '" data-key="' + m.key + '" style="--c:' + m.color + '">' + esc(m.label) + '</button>';
+  }
+  $('ae-members').innerHTML = html;
+
+  var btns = $('ae-members').querySelectorAll('.am-pick');
+  for (var j = 0; j < btns.length; j++) {
+    btns[j].addEventListener('click', function (ev) {
+      renderAddMemberPicker(ev.currentTarget.getAttribute('data-key'));
+    });
+  }
+}
+
+function openAddEvent() {
+  $('ae-msg').textContent = '';
+  $('ae-title').value = '';
+  $('ae-location').value = '';
+  $('ae-allday').checked = false;
+  $('ae-time-row').hidden = false;
+  $('ae-date').value = ymd(STATE.viewDate);
+  $('ae-start').value = '09:00';
+  $('ae-end').value = '10:00';
+  renderAddMemberPicker(null);
+  $('modal-add').hidden = false;
+}
+
+function closeAddEvent() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $('modal-add').hidden = true;
+  $('modal-add').scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+function submitAddEvent() {
+  var sel = $('ae-members').querySelector('.am-pick.sel');
+  var member = sel ? sel.getAttribute('data-key') : null;
+  var title = $('ae-title').value.trim();
+  var allDay = $('ae-allday').checked;
+  var date = $('ae-date').value;
+  var start = $('ae-start').value;
+  var end = $('ae-end').value;
+  var location = $('ae-location').value.trim();
+
+  if (!CFG.endpoint) { $('ae-msg').textContent = '⚙で取得URLを設定すると使えます（デモ表示中は追加できません）'; return; }
+  if (!member) { $('ae-msg').textContent = '誰の予定か選んでください'; return; }
+  if (!title) { $('ae-msg').textContent = 'タイトルを入れてください'; return; }
+  if (!date) { $('ae-msg').textContent = '日付を選んでください'; return; }
+  if (!allDay && (!start || !end)) { $('ae-msg').textContent = '開始・終了の時刻を入れてください'; return; }
+  if (!allDay && start >= end) { $('ae-msg').textContent = '終了時刻は開始時刻より後にしてください'; return; }
+
+  $('ae-msg').textContent = '追加しています…';
+  $('ae-save').disabled = true;
+
+  fetch(CFG.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      member: member, title: title, allDay: allDay,
+      date: date, startTime: start, endTime: end, location: location
+    })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || '追加に失敗しました');
+      closeAddEvent();
+      STATE.events = [];
+      fetchData(false);
+    })
+    .catch(function (e) {
+      $('ae-msg').textContent = '追加できません: ' + String(e.message || e).slice(0, 60);
+    })
+    .then(function () { $('ae-save').disabled = false; });
+}
+
+/* ------------------------------------------------------------------
    12. 焼き付き防止 / 画面スリープ抑止
    ------------------------------------------------------------------ */
 var shiftStep = 0;
@@ -1050,6 +1136,16 @@ function init() {
   $('btn-save').addEventListener('click', saveSettings);
   $('modal').addEventListener('click', function (ev) {
     if (ev.target === $('modal')) closeSettings();
+  });
+
+  $('btn-add').addEventListener('click', openAddEvent);
+  $('ae-close').addEventListener('click', closeAddEvent);
+  $('ae-save').addEventListener('click', submitAddEvent);
+  $('ae-allday').addEventListener('change', function () {
+    $('ae-time-row').hidden = this.checked;
+  });
+  $('modal-add').addEventListener('click', function (ev) {
+    if (ev.target === $('modal-add')) closeAddEvent();
   });
 
   // 左右スワイプで日付移動

@@ -96,6 +96,74 @@ function doGet(e) {
   }
 }
 
+/* ---------------------------------------------------------------------
+   予定の追加（家族ボードの「＋」から呼ばれる）
+
+   POSTの本文はJSON文字列（Content-Type: text/plain で送る決まり。
+   application/json にすると、iOSのSafari/GASの組み合わせでCORSの
+   プリフライトが通らないことがあるため、あえて text/plain にしている）。
+
+   { member, title, allDay, date, startTime, endTime, location }
+   --------------------------------------------------------------------- */
+function doPost(e) {
+  try {
+    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+
+    if (CONFIG.accessKey && body.key !== CONFIG.accessKey) {
+      return json({ ok: false, error: 'unauthorized' });
+    }
+
+    var title = String(body.title || '').trim();
+    if (!title) return json({ ok: false, error: 'タイトルが空です' });
+    if (!body.date) return json({ ok: false, error: '日付が指定されていません' });
+
+    var memberDef = null;
+    for (var i = 0; i < CONFIG.members.length; i++) {
+      if (CONFIG.members[i].key === body.member) { memberDef = CONFIG.members[i]; break; }
+    }
+    var fullTitle = memberDef ? ('【' + memberDef.tags[0] + '】' + title) : title;
+
+    // 書き込み先：その人専用のカレンダーがあればそこへ、無ければ共通カレンダーへ。
+    var calId = (memberDef && memberDef.calendars && memberDef.calendars[0])
+              || CONFIG.sharedCalendars[0];
+    if (!calId) return json({ ok: false, error: '書き込み先のカレンダーが設定されていません' });
+
+    var cal = CalendarApp.getCalendarById(calId);
+    if (!cal) return json({ ok: false, error: 'カレンダーが見つかりません: ' + calId });
+
+    var ev;
+    if (body.allDay) {
+      var d = parseYmd(body.date);
+      ev = cal.createAllDayEvent(fullTitle, d, { location: body.location || '' });
+    } else {
+      if (!body.startTime || !body.endTime) {
+        return json({ ok: false, error: '開始・終了の時刻が指定されていません' });
+      }
+      var start = parseYmdHm(body.date, body.startTime);
+      var end = parseYmdHm(body.date, body.endTime);
+      if (!(end > start)) return json({ ok: false, error: '終了時刻は開始時刻より後にしてください' });
+      ev = cal.createEvent(fullTitle, start, end, { location: body.location || '' });
+    }
+
+    return json({ ok: true, id: ev.getId() });
+
+  } catch (err) {
+    return json({ ok: false, error: String(err) });
+  }
+}
+
+function parseYmd(s) {
+  var p = String(s).split('-');
+  return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+}
+
+function parseYmdHm(dateStr, hm) {
+  var d = parseYmd(dateStr);
+  var t = String(hm || '00:00').split(':');
+  d.setHours(parseInt(t[0], 10), parseInt(t[1], 10), 0, 0);
+  return d;
+}
+
 function collectEvents(from, to) {
   var out = [];
   var seen = {};
@@ -267,4 +335,20 @@ function testOutput() {
   var res = doGet({ parameter: { days: '3' } });
   var text = res.getContent();
   Logger.log('件数など: ' + text.slice(0, 400));
+}
+
+/* 動作確認：▶実行すると、テスト用の予定を1件作ってログにIDを出します。
+   確認できたらGoogleカレンダー側で削除してください。 */
+function testAddEvent() {
+  var body = {
+    member: 'shared',
+    title: 'テスト予定（削除してOK）',
+    allDay: false,
+    date: Utilities.formatDate(new Date(), CONFIG.timeZone, 'yyyy-MM-dd'),
+    startTime: '23:00',
+    endTime: '23:30',
+    location: ''
+  };
+  var res = doPost({ postData: { contents: JSON.stringify(body) } });
+  Logger.log(res.getContent());
 }

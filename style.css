@@ -681,6 +681,8 @@ html, body {
 }
 .fld-row { display: flex; gap: 1.2vh; }
 .fld-row .fld { flex: 1 1 0; }
+.fld-row .fld-row { flex: 2 1 0; }
+#ae-time-row[hidden] { display: none; }
 
 .place-results {
   display: flex;
@@ -708,6 +710,24 @@ html, body {
 .place-opt b    { font-size: 1.9vh; font-weight: 600; }
 .place-opt span { font-size: 1.6vh; color: var(--muted); }
 .place-opt em   { font-size: 1.4vh; color: var(--dim); font-style: normal; font-variant-numeric: tabular-nums; }
+
+/* --- 予定追加：誰の予定か選ぶピル --- */
+.am-picks { display: flex; gap: 0.7vh; flex-wrap: wrap; }
+.am-pick {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: 1.9vh;
+  font-weight: 600;
+  padding: 0.8vh 1.4vh;
+  border-radius: 999px;
+  border: 0.2vh solid var(--c);
+  background: transparent;
+  color: var(--c);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.am-pick.sel { background: var(--c); color: #0B0F14; }
 
 .members { display: flex; gap: 0.8vh; flex-wrap: wrap; }
 .member-in {
