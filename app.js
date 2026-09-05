@@ -969,13 +969,18 @@ function renderAddMemberPicker(selectedKey) {
             '" data-key="' + m.key + '" style="--c:' + m.color + '">' + esc(m.label) + '</button>';
   }
   $('ae-members').innerHTML = html;
+}
 
-  var btns = $('ae-members').querySelectorAll('.am-pick');
-  for (var j = 0; j < btns.length; j++) {
-    btns[j].addEventListener('click', function (ev) {
-      renderAddMemberPicker(ev.currentTarget.getAttribute('data-key'));
-    });
-  }
+/* ピル1つ1つにリスナーを付けるのではなく、親要素で受け止めて
+   実際にタップされたボタンを closest() で特定する(委譲)。
+   一部のiOS Safariで「どこを押しても同じボタンが選ばれる」報告が
+   あったため、個別リスナー方式より取りこぼしに強いこちらに変更した。 */
+function initAddMemberPicker() {
+  $('ae-members').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.am-pick');
+    if (!btn) return;
+    renderAddMemberPicker(btn.getAttribute('data-key'));
+  });
 }
 
 function openAddEvent() {
@@ -1141,6 +1146,7 @@ function init() {
   $('btn-add').addEventListener('click', openAddEvent);
   $('ae-close').addEventListener('click', closeAddEvent);
   $('ae-save').addEventListener('click', submitAddEvent);
+  initAddMemberPicker();
   $('ae-allday').addEventListener('change', function () {
     $('ae-time-row').hidden = this.checked;
   });

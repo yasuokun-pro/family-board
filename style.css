@@ -711,17 +711,21 @@ html, body {
 .place-opt span { font-size: 1.6vh; color: var(--muted); }
 .place-opt em   { font-size: 1.4vh; color: var(--dim); font-style: normal; font-variant-numeric: tabular-nums; }
 
-/* --- 予定追加：誰の予定か選ぶピル --- */
-.am-picks { display: flex; gap: 0.7vh; flex-wrap: wrap; }
+/* --- 予定追加：誰の予定か選ぶピル ---
+   px固定にしている。vh基準だと壁掛けミラーリング前提のサイズ感になり、
+   手元のiPhoneで直接見ると大きくなりすぎるため(.icon-btnで学んだのと同じ理由)。 */
+.am-picks { display: flex; gap: 6px; flex-wrap: wrap; }
 .am-pick {
   -webkit-appearance: none;
   appearance: none;
+  flex: 0 0 auto;
   font-family: inherit;
-  font-size: 1.9vh;
+  font-size: 13px;
   font-weight: 600;
-  padding: 0.8vh 1.4vh;
+  line-height: 1.2;
+  padding: 6px 12px;
   border-radius: 999px;
-  border: 0.2vh solid var(--c);
+  border: 1.5px solid var(--c);
   background: transparent;
   color: var(--c);
   cursor: pointer;
