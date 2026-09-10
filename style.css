@@ -324,6 +324,17 @@ html, body {
   margin-right: 0.4vh;
 }
 .status.err { color: #FF8A8A; }
+
+/* 常時表示モード：ボタン類を消し、画面タップで一時的に呼び出す */
+body.kiosk-mode .board-tools {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+body.kiosk-mode.controls-visible .board-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
 .icon-btn {
   -webkit-appearance: none;
   appearance: none;

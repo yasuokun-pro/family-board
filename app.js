@@ -26,6 +26,7 @@ var DEFAULTS = {
   endHour: 23,
   refreshMin: 5,
   burnin: true,
+  kiosk: false,
   labels: {},
   place: null      /* {query, name, lat, lon} — 端末にだけ保存される */
 };
@@ -894,6 +895,7 @@ function openSettings() {
   $('s-end').value = String(CFG.endHour);
   $('s-refresh').value = String(CFG.refreshMin);
   $('s-burnin').checked = !!CFG.burnin;
+  $('s-kiosk').checked = !!CFG.kiosk;
 
   var mh = '';
   var ms = memberList();
@@ -922,6 +924,7 @@ function saveSettings() {
   CFG.endHour    = parseInt($('s-end').value, 10);
   CFG.refreshMin = parseInt($('s-refresh').value, 10);
   CFG.burnin     = $('s-burnin').checked;
+  CFG.kiosk      = $('s-kiosk').checked;
   if (CFG.endHour <= CFG.startHour) CFG.endHour = CFG.startHour + 1;
 
   var labels = {};
@@ -968,6 +971,7 @@ function saveSettings() {
 function finishSave() {
   saveCfg(CFG);
   closeSettings();
+  applyKioskMode();
   STATE.events = [];
   fetchData(false);
   fetchWeather();
@@ -1151,10 +1155,82 @@ function burnInShift() {
   $('shift').style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
 }
 
+/* Wake Lock APIはiOS 16.4未満のSafariには存在せず、対象機種(iOS 15〜16)の
+   一部では何もしていない可能性がある。また対応端末でも、バックグラウンド
+   遷移やOS都合で無音のうちに解放されることがある(iOS Safariで既知)。
+   そのため: (1) 解放イベントで即座に再取得を試み、(2) 念のため数分おきにも
+   再取得を試み、(3) Wake Lock自体が使えない端末では、古くから知られる
+   「無音の動画を再生させ続けるとiOS Safariはスリープしない」という手法
+   (canvas.captureStream()で映像を自作。ライブラリ不要)にフォールバックする。 */
+var wakeLockObj = null;
+
 function keepAwake() {
   if (navigator.wakeLock && navigator.wakeLock.request) {
-    navigator.wakeLock.request('screen').catch(function () {});
+    navigator.wakeLock.request('screen')
+      .then(function (lock) {
+        wakeLockObj = lock;
+        lock.addEventListener('release', function () { wakeLockObj = null; });
+      })
+      .catch(function () { startNoSleepFallback(); });
+  } else {
+    startNoSleepFallback();
   }
+}
+
+function startNoSleepFallback() {
+  if (window.__noSleepVideo) return;
+  try {
+    var canvas = document.createElement('canvas');
+    canvas.width = 2; canvas.height = 2;
+    var ctx = canvas.getContext('2d');
+    var toggle = 0;
+    function draw() {
+      toggle = 1 - toggle;
+      ctx.fillStyle = toggle ? '#000000' : '#010101';
+      ctx.fillRect(0, 0, 2, 2);
+    }
+    draw();
+
+    var stream = canvas.captureStream(1);
+    var video = document.createElement('video');
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.muted = true;
+    video.style.position = 'fixed';
+    video.style.width = '1px';
+    video.style.height = '1px';
+    video.style.opacity = '0';
+    video.style.pointerEvents = 'none';
+    video.srcObject = stream;
+    document.body.appendChild(video);
+    var timer = setInterval(draw, 1000);
+    video.play().catch(function () {});
+    window.__noSleepVideo = { video: video, timer: timer };
+  } catch (e) {}
+}
+
+/* ------------------------------------------------------------------
+   12.5 常時表示モード（壁掛け用）
+   ⚙・＋などのボタンを普段は消しておき、画面をタップした瞬間だけ
+   数秒間だけ表示する。日付移動のスワイプ等、既存のタッチ検知
+   (STATE.lastTouch) にそのまま相乗りする。
+   ------------------------------------------------------------------ */
+var kioskHideTimer = null;
+
+function showKioskControls() {
+  if (!CFG.kiosk) return;
+  document.body.classList.add('controls-visible');
+  clearTimeout(kioskHideTimer);
+  kioskHideTimer = setTimeout(function () {
+    document.body.classList.remove('controls-visible');
+  }, 6000);
+}
+
+function applyKioskMode() {
+  document.body.classList.toggle('kiosk-mode', !!CFG.kiosk);
+  document.body.classList.remove('controls-visible');
+  clearTimeout(kioskHideTimer);
 }
 
 /* ------------------------------------------------------------------
@@ -1173,6 +1249,7 @@ function init() {
     if (wxc) { WX.current = wxc.current; WX.daily = wxc.daily; }
   } catch (e) {}
 
+  applyKioskMode();
   renderAll();
   tickClock();
   fetchData(false);
@@ -1183,6 +1260,8 @@ function init() {
   setInterval(fetchWeather, 20 * 60000);
   setInterval(burnInShift, 3 * 60000);
   setInterval(renderNextUp, 60000);
+  // Wake Lockが無音のうちに解放されていた場合の保険で、数分おきに取り直す
+  setInterval(function () { if (!wakeLockObj) keepAwake(); }, 3 * 60000);
 
   // 操作が5分止まったら自動的に今日(1日表示)へ戻す
   setInterval(function () {
@@ -1201,7 +1280,7 @@ function init() {
     if (!document.hidden) { tickClock(); fetchData(true); fetchWeather(); keepAwake(); }
   });
 
-  function touched() { STATE.lastTouch = Date.now(); }
+  function touched() { STATE.lastTouch = Date.now(); showKioskControls(); }
   document.addEventListener('touchstart', touched, { passive: true });
   document.addEventListener('click', touched);
 
