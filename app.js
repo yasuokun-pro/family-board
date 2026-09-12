@@ -1082,12 +1082,14 @@ function initAddMemberPicker() {
 
 /* 編集中の予定。null なら新規追加、値があれば「その予定を編集中」。 */
 STATE.editingEvent = null;
+STATE.savingEvent = false;  // 保存/削除の通信中はtrue。閉じるボタン等の連打防止に使う
 
 function openAddEvent() {
   STATE.editingEvent = null;
   $('ae-heading').textContent = '予定を追加';
   $('ae-save').textContent = '追加する';
   $('ae-delete').hidden = true;
+  $('ae-close').disabled = false;
   $('ae-msg').textContent = '';
   $('ae-title').value = '';
   $('ae-location').value = '';
@@ -1107,6 +1109,7 @@ function openEditEvent(ev) {
   $('ae-heading').textContent = '予定を編集';
   $('ae-save').textContent = '更新する';
   $('ae-delete').hidden = false;
+  $('ae-close').disabled = false;
   $('ae-msg').textContent = '';
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
@@ -1168,9 +1171,11 @@ function submitAddEvent() {
     payload.calId = STATE.editingEvent.calId;
   }
 
-  $('ae-msg').textContent = STATE.editingEvent ? '更新しています…' : '追加しています…';
+  $('ae-msg').textContent = STATE.editingEvent ? '更新しています…このまま少しお待ちください' : '追加しています…このまま少しお待ちください';
   $('ae-save').disabled = true;
   $('ae-delete').disabled = true;
+  $('ae-close').disabled = true;
+  STATE.savingEvent = true;
 
   fetch(CFG.endpoint, {
     method: 'POST',
@@ -1187,16 +1192,23 @@ function submitAddEvent() {
     .catch(function (e) {
       $('ae-msg').textContent = '保存できません: ' + String(e.message || e).slice(0, 60);
     })
-    .then(function () { $('ae-save').disabled = false; $('ae-delete').disabled = false; });
+    .then(function () {
+      STATE.savingEvent = false;
+      $('ae-save').disabled = false;
+      $('ae-delete').disabled = false;
+      $('ae-close').disabled = false;
+    });
 }
 
 function deleteCurrentEvent() {
   if (!STATE.editingEvent) return;
   if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title)) return;
 
-  $('ae-msg').textContent = '削除しています…';
+  $('ae-msg').textContent = '削除しています…このまま少しお待ちください';
   $('ae-save').disabled = true;
   $('ae-delete').disabled = true;
+  $('ae-close').disabled = true;
+  STATE.savingEvent = true;
 
   fetch(CFG.endpoint, {
     method: 'POST',
@@ -1213,7 +1225,12 @@ function deleteCurrentEvent() {
     .catch(function (e) {
       $('ae-msg').textContent = '削除できません: ' + String(e.message || e).slice(0, 60);
     })
-    .then(function () { $('ae-save').disabled = false; $('ae-delete').disabled = false; });
+    .then(function () {
+      STATE.savingEvent = false;
+      $('ae-save').disabled = false;
+      $('ae-delete').disabled = false;
+      $('ae-close').disabled = false;
+    });
 }
 
 /* ------------------------------------------------------------------
@@ -1402,7 +1419,7 @@ function init() {
     $('ae-time-row').hidden = this.checked;
   });
   $('modal-add').addEventListener('click', function (ev) {
-    if (ev.target === $('modal-add')) closeAddEvent();
+    if (ev.target === $('modal-add') && !STATE.savingEvent) closeAddEvent();
   });
 
   // 左右スワイプで日付移動
