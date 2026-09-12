@@ -725,11 +725,36 @@ function isNarrowScreen() {
   return window.innerWidth < MC_NARROW_PX;
 }
 
+/* 1マス(.mc)が実際に必要とする高さ(3件表示+日付行ぶん)を、
+   画面外に同じ構造のダミーを一瞬だけ置いて実測する。以前は
+   月間グリッドの高さを「残りを6等分」で決めていたため、予定が
+   少ない日にもマス目いっぱいの空白ができていた。3件ぶんに必要な
+   最小限の高さだけを固定値として使い、余った分は下の詳細パネルに
+   回す(--mc-row-hとしてCSSに渡す。sizeHours()の--hour-hと同じ手法)。 */
+function measureMonthCellHeight(narrow) {
+  var probe = document.createElement('div');
+  probe.className = 'mc' + (narrow ? ' narrow' : '');
+  probe.style.cssText = 'position:absolute; visibility:hidden; left:-9999px; top:-9999px; width:100px;';
+  var evsHtml = '';
+  for (var i = 0; i < MC_MAX; i++) {
+    evsHtml += '<div class="mc-ev">00:00 ダミー予定</div>';
+  }
+  probe.innerHTML =
+    '<div class="mc-num-row"><span class="mc-num">30</span><span class="mc-more">+9</span></div>' +
+    '<div class="mc-evs">' + evsHtml + '</div>';
+  document.body.appendChild(probe);
+  var h = probe.getBoundingClientRect().height;
+  document.body.removeChild(probe);
+  return h;
+}
+
 function renderMonthView() {
   var view = STATE.viewDate;
   var today = startOfDay(new Date());
   var y = view.getFullYear(), m = view.getMonth();
   var narrow = isNarrowScreen();
+
+  document.documentElement.style.setProperty('--mc-row-h', measureMonthCellHeight(narrow) + 'px');
 
   $('board-date').textContent = y + '年' + (m + 1) + '月';
   $('board-sub').textContent = narrow ? 'タップで詳細' : '';
