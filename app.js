@@ -762,12 +762,13 @@ function renderMonthView() {
       var label = (ev.allDay || narrow) ? ev.title : (hhmm(ev.start) + ' ' + ev.title);
       body += '<div class="mc-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' + esc(label) + '</div>';
     }
-    if (evs.length > MC_MAX) {
-      body += '<div class="mc-more">+' + (evs.length - MC_MAX) + '</div>';
-    }
+    // あふれた件数の「+N」は、専用の行を足さずに日付の隣(右詰め)に出す。
+    // "+1"のためだけに予定1件ぶんの高さを使うのはもったいないため。
+    var moreLabel = evs.length > MC_MAX ? '+' + (evs.length - MC_MAX) : '';
 
     html += '<div class="' + cls + (narrow ? ' narrow' : '') + '" data-date="' + key + '">' +
-              '<div class="mc-num">' + d.getDate() + '</div>' +
+              '<div class="mc-num-row"><span class="mc-num">' + d.getDate() + '</span>' +
+              (moreLabel ? '<span class="mc-more">' + moreLabel + '</span>' : '') + '</div>' +
               '<div class="mc-evs">' + body + '</div>' +
             '</div>';
   }

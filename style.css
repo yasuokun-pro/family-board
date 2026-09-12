@@ -581,8 +581,18 @@ body.kiosk-mode.controls-visible .board-tools {
 .mc.today { box-shadow: inset 0 0 0 0.22vh #E6EDF5; }
 .mc.selected { box-shadow: inset 0 0 0 0.22vh var(--sat); background: var(--panel-2); }
 
-.mc-num {
+/* 日付と、あふれた件数の「+N」を同じ行に収める(日付=左, +N=右詰め)。
+   以前は+Nを予定一覧の下にもう1行足していたが、"+1"程度の短い文字の
+   ためだけに1行ぶんの高さを使うのがもったいないという指摘で、
+   日付行に間借りする形にした。 */
+.mc-num-row {
   flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3vh;
+}
+.mc-num {
   font-size: 1.9vh;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -612,10 +622,9 @@ body.kiosk-mode.controls-visible .board-tools {
   text-overflow: ellipsis;
 }
 .mc-more {
-  flex: 0 0 auto;
   font-size: 1.4vh;
   color: var(--dim);
-  padding-left: 0.4vh;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 幅が狭い画面向け：時刻を省いてタイトルだけにし、文字を小さくして
@@ -630,7 +639,7 @@ body.kiosk-mode.controls-visible .board-tools {
   border-radius: 2px;
   letter-spacing: -0.02em;
 }
-.mc.narrow .mc-more { font-size: 8px; }
+.mc.narrow .mc-more { font-size: 9px; }
 
 /* 月表示のまま、選んだ日の予定を少し大きく見せる詳細パネル。
    グリッドの下に出す(flex子として積む。.month-viewは既にflex縦並び)。
