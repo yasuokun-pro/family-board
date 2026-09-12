@@ -325,6 +325,20 @@ html, body {
 }
 .status.err { color: #FF8A8A; }
 
+/* 予定の保存/削除は裏で進めつつ、その状況を⚙の横に小さく出す。
+   モーダルは操作したらすぐ閉じて元の画面に戻れるようにしてあるため
+   (更新に時間がかかることがあるため、待たされた感じを無くす狙い)、
+   代わりにここで進行状況を示す。 */
+.sync-status {
+  font-size: 1.6vh;
+  color: var(--muted);
+  margin-right: 0.4vh;
+  white-space: nowrap;
+}
+.sync-status.saving { color: var(--muted); }
+.sync-status.ok { color: #6FCF8F; }
+.sync-status.err { color: #FF8A8A; }
+
 /* 常時表示モード：ボタン類を消し、画面タップで一時的に呼び出す */
 body.kiosk-mode .board-tools {
   opacity: 0;

@@ -1108,14 +1108,30 @@ function initAddMemberPicker() {
 
 /* 編集中の予定。null なら新規追加、値があれば「その予定を編集中」。 */
 STATE.editingEvent = null;
-STATE.savingEvent = false;  // 保存/削除の通信中はtrue。閉じるボタン等の連打防止に使う
+
+/* 予定の保存/削除の進行状況を⚙の横に小さく出す。GAS側の書き込みは
+   数秒かかることがあるため、モーダルは操作した瞬間に閉じてしまい、
+   その間も普段通りボードを操作できるようにしている(下のsubmitAddEvent/
+   deleteCurrentEvent参照)。その代わり、裏で進んでいることが分かる
+   ようにこのバッジで知らせる。 */
+var syncStatusTimer = null;
+function setSyncStatus(text, kind) {
+  var el = $('sync-status');
+  clearTimeout(syncStatusTimer);
+  if (!text) { el.hidden = true; el.textContent = ''; el.className = 'sync-status'; return; }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = 'sync-status' + (kind ? ' ' + kind : '');
+  if (kind !== 'saving') {
+    syncStatusTimer = setTimeout(function () { setSyncStatus(''); }, kind === 'err' ? 8000 : 3000);
+  }
+}
 
 function openAddEvent() {
   STATE.editingEvent = null;
   $('ae-heading').textContent = '予定を追加';
   $('ae-save').textContent = '追加する';
   $('ae-delete').hidden = true;
-  $('ae-close').disabled = false;
   $('ae-msg').textContent = '';
   $('ae-title').value = '';
   $('ae-location').value = '';
@@ -1135,7 +1151,6 @@ function openEditEvent(ev) {
   $('ae-heading').textContent = '予定を編集';
   $('ae-save').textContent = '更新する';
   $('ae-delete').hidden = false;
-  $('ae-close').disabled = false;
   $('ae-msg').textContent = '';
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
@@ -1191,17 +1206,17 @@ function submitAddEvent() {
     date: f.date, startTime: f.start, endTime: f.end,
     location: f.location, description: f.memo
   };
-  if (STATE.editingEvent) {
+  var isUpdate = !!STATE.editingEvent;
+  if (isUpdate) {
     payload.action = 'update';
     payload.id = STATE.editingEvent.id;
     payload.calId = STATE.editingEvent.calId;
   }
 
-  $('ae-msg').textContent = STATE.editingEvent ? '更新しています…このまま少しお待ちください' : '追加しています…このまま少しお待ちください';
-  $('ae-save').disabled = true;
-  $('ae-delete').disabled = true;
-  $('ae-close').disabled = true;
-  STATE.savingEvent = true;
+  // GAS側の書き込みは数秒かかることがあるので、待たせずにその日の
+  // 画面へすぐ戻す。保存自体は裏で続け、状況は⚙横のバッジで示す。
+  closeAddEvent();
+  setSyncStatus(isUpdate ? '更新中…' : '追加中…', 'saving');
 
   fetch(CFG.endpoint, {
     method: 'POST',
@@ -1211,18 +1226,12 @@ function submitAddEvent() {
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || '保存に失敗しました');
-      closeAddEvent();
       STATE.events = [];
       fetchData(false);
+      setSyncStatus(isUpdate ? '更新しました' : '追加しました', 'ok');
     })
     .catch(function (e) {
-      $('ae-msg').textContent = '保存できません: ' + String(e.message || e).slice(0, 60);
-    })
-    .then(function () {
-      STATE.savingEvent = false;
-      $('ae-save').disabled = false;
-      $('ae-delete').disabled = false;
-      $('ae-close').disabled = false;
+      setSyncStatus('保存できません: ' + String(e.message || e).slice(0, 40), 'err');
     });
 }
 
@@ -1230,32 +1239,26 @@ function deleteCurrentEvent() {
   if (!STATE.editingEvent) return;
   if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title)) return;
 
-  $('ae-msg').textContent = '削除しています…このまま少しお待ちください';
-  $('ae-save').disabled = true;
-  $('ae-delete').disabled = true;
-  $('ae-close').disabled = true;
-  STATE.savingEvent = true;
+  var id = STATE.editingEvent.id;
+  var calId = STATE.editingEvent.calId;
+
+  closeAddEvent();
+  setSyncStatus('削除中…', 'saving');
 
   fetch(CFG.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'delete', id: STATE.editingEvent.id, calId: STATE.editingEvent.calId })
+    body: JSON.stringify({ action: 'delete', id: id, calId: calId })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || '削除に失敗しました');
-      closeAddEvent();
       STATE.events = [];
       fetchData(false);
+      setSyncStatus('削除しました', 'ok');
     })
     .catch(function (e) {
-      $('ae-msg').textContent = '削除できません: ' + String(e.message || e).slice(0, 60);
-    })
-    .then(function () {
-      STATE.savingEvent = false;
-      $('ae-save').disabled = false;
-      $('ae-delete').disabled = false;
-      $('ae-close').disabled = false;
+      setSyncStatus('削除できません: ' + String(e.message || e).slice(0, 40), 'err');
     });
 }
 
@@ -1445,7 +1448,7 @@ function init() {
     $('ae-time-row').hidden = this.checked;
   });
   $('modal-add').addEventListener('click', function (ev) {
-    if (ev.target === $('modal-add') && !STATE.savingEvent) closeAddEvent();
+    if (ev.target === $('modal-add')) closeAddEvent();
   });
 
   // 左右スワイプで日付移動
