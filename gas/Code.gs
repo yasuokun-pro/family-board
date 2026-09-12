@@ -193,11 +193,20 @@ function createEventInCalendar(f) {
 
 /* doGetが返す複合id("実イベントID@開始時刻ms")とcalIdから、
    実際のCalendarEventを引き当てる。実イベントID自体に"@"を含むことが
-   多い(例: xxxx@google.com)ため、最後の"@"で区切る。 */
+   多い(例: xxxx@google.com)ため、最後の"@"で区切る。
+
+   TimeTreeなど、Googleカレンダーの外から取り込まれた（＝Googleの
+   カレンダーUI以外の経路で作られた）予定は、getEventById() による
+   直接引き当てが失敗することがある（Apps Script/Calendar APIの
+   既知の制限。getEvents()一覧には出てくるのに、同じIDをgetEventById()
+   に渡すとnullが返る）。そのため直接引き当てがダメだったときは、
+   複合idに含まれる開始時刻の近辺だけをgetEvents()で素直に走査し、
+   getId()が一致するものを探す保険を用意した。 */
 function findRawEvent(compositeId, calId) {
   var s = String(compositeId);
   var idx = s.lastIndexOf('@');
   var rawId = idx >= 0 ? s.substring(0, idx) : s;
+  var tsMs = idx >= 0 ? parseInt(s.substring(idx + 1), 10) : NaN;
 
   try {
     if (calId) {
@@ -207,10 +216,30 @@ function findRawEvent(compositeId, calId) {
         if (ev) return ev;
       }
     }
-    return CalendarApp.getEventById(rawId);
+    var direct = CalendarApp.getEventById(rawId);
+    if (direct) return direct;
   } catch (e) {
-    return null;
+    // 直接引き当てで例外が出ても、下の走査に進む
   }
+
+  if (calId && !isNaN(tsMs)) {
+    try {
+      var cal2 = CalendarApp.getCalendarById(calId);
+      if (cal2) {
+        var day = new Date(tsMs);
+        var from = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1);
+        var to = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 2);
+        var candidates = cal2.getEvents(from, to);
+        for (var i = 0; i < candidates.length; i++) {
+          if (candidates[i].getId() === rawId) return candidates[i];
+        }
+      }
+    } catch (e2) {
+      // 見つからなければ下でnullを返す
+    }
+  }
+
+  return null;
 }
 
 function parseYmd(s) {

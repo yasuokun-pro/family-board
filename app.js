@@ -97,6 +97,7 @@ var STATE = {
   holidays: {},      // {"YYYY-MM-DD": "敬老の日"}
   viewDate: startOfDay(new Date()),
   monthMode: false,  // true: 月間一覧 / false: 1日タイムライン
+  monthSelectedKey: null,  // 月間一覧でタップして選んだ日("YYYY-MM-DD")。もう一度タップでその日に移動
   lastFetch: 0,
   lastTouch: Date.now(),
   fetching: false
@@ -747,6 +748,7 @@ function renderMonthView() {
     else if (d.getDay() === 0) cls += ' sun';
     else if (d.getDay() === 6) cls += ' sat';
     if (key === ymd(today)) cls += ' today';
+    if (key === STATE.monthSelectedKey) cls += ' selected';
 
     var evs = byDay[key] || [];
     var body = '';
@@ -774,15 +776,67 @@ function renderMonthView() {
   var cells = $('month-grid').querySelectorAll('.mc');
   for (var k = 0; k < cells.length; k++) {
     cells[k].addEventListener('click', function (ev) {
-      var p = ev.currentTarget.getAttribute('data-date').split('-');
-      STATE.viewDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
-      setMonthMode(false);
+      var key = ev.currentTarget.getAttribute('data-date');
+      var p = key.split('-');
+      var d2 = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+
+      if (STATE.monthSelectedKey === key) {
+        // 選択済みの日をもう一度タップ → その日の1日表示へ移動
+        STATE.viewDate = d2;
+        STATE.monthSelectedKey = null;
+        setMonthMode(false);
+      } else {
+        // 1回目のタップ → 月表示のまま選択し、下に予定を大きめに出す
+        STATE.viewDate = d2;
+        STATE.monthSelectedKey = key;
+        renderAll();
+      }
     });
   }
+
+  renderMonthDetail();
+}
+
+/* 月間一覧で選ばれている日の予定を、下の詳細パネルに少し大きく表示する。
+   グリッドのセルは小さくて読みにくいための補助。もう一度同じ日をタップ
+   すると1日表示に移動する(cellsのクリックハンドラ側で処理)。 */
+function renderMonthDetail() {
+  var box = $('month-detail');
+  var key = STATE.monthSelectedKey;
+  if (!key) { box.hidden = true; box.innerHTML = ''; return; }
+
+  var p = key.split('-');
+  var day = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  var dayEvents = eventsOn(day).slice().sort(function (a, b) {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+    return a.start - b.start;
+  });
+
+  var html = '<div class="md-head"><b>' + (day.getMonth() + 1) + '/' + day.getDate() +
+             '（' + DOW[day.getDay()] + '）</b><span>' + dayEvents.length + '件</span>' +
+             '<span class="md-hint">もう一度タップでこの日を開く</span></div>';
+
+  if (dayEvents.length === 0) {
+    html += '<div class="md-empty">予定はありません</div>';
+  } else {
+    for (var i = 0; i < dayEvents.length; i++) {
+      var ev = dayEvents[i];
+      var mem = memberByKey(ev.member);
+      var time = ev.allDay ? '終日' : hhmm(ev.start);
+      html += '<div class="md-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' +
+                '<span class="md-time">' + time + '</span>' +
+                '<span class="md-title">' + esc(ev.title) + '</span>' +
+                (ev.location ? '<span class="md-loc">' + esc(ev.location) + '</span>' : '') +
+              '</div>';
+    }
+  }
+  box.innerHTML = html;
+  box.hidden = false;
 }
 
 function setMonthMode(on) {
   STATE.monthMode = on;
+  STATE.monthSelectedKey = null;
   $('day-view').hidden = on;
   $('month-view').hidden = !on;
   $('btn-month').classList.toggle('active', on);
@@ -1288,6 +1342,7 @@ function init() {
     if (STATE.monthMode) {
       var d = STATE.viewDate;
       STATE.viewDate = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      STATE.monthSelectedKey = null;
     } else {
       STATE.viewDate = addDays(STATE.viewDate, -1);
     }
@@ -1297,6 +1352,7 @@ function init() {
     if (STATE.monthMode) {
       var d2 = STATE.viewDate;
       STATE.viewDate = new Date(d2.getFullYear(), d2.getMonth() + 1, 1);
+      STATE.monthSelectedKey = null;
     } else {
       STATE.viewDate = addDays(STATE.viewDate, 1);
     }
@@ -1343,6 +1399,7 @@ function init() {
       if (STATE.monthMode) {
         var dm = STATE.viewDate;
         STATE.viewDate = new Date(dm.getFullYear(), dm.getMonth() + (dx < 0 ? 1 : -1), 1);
+        STATE.monthSelectedKey = null;
       } else {
         STATE.viewDate = addDays(STATE.viewDate, dx < 0 ? 1 : -1);
       }

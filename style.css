@@ -579,6 +579,7 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .mc.out { opacity: 0.35; }
 .mc.today { box-shadow: inset 0 0 0 0.22vh #E6EDF5; }
+.mc.selected { box-shadow: inset 0 0 0 0.22vh var(--sat); background: var(--panel-2); }
 
 .mc-num {
   flex: 0 0 auto;
@@ -630,6 +631,47 @@ body.kiosk-mode.controls-visible .board-tools {
   letter-spacing: -0.02em;
 }
 .mc.narrow .mc-more { font-size: 8px; }
+
+/* 月表示のまま、選んだ日の予定を少し大きく見せる詳細パネル。
+   グリッドの下に出す(flex子として積む。.month-viewは既にflex縦並び)。 */
+.month-detail {
+  flex: 0 0 auto;
+  max-height: 26vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 0.8vh;
+  padding: 1vh 1.2vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+}
+.month-detail[hidden] { display: none; }
+.md-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8vh;
+  font-size: 2vh;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+.md-head b { font-weight: 700; }
+.md-head span { font-size: 1.7vh; color: var(--muted); }
+.md-hint { font-size: 1.5vh; color: var(--dim); }
+.md-empty { font-size: 1.8vh; color: var(--dim); }
+.md-ev {
+  display: flex;
+  align-items: baseline;
+  gap: 1vh;
+  padding: 0.5vh 0.7vh;
+  border-left: 0.4vh solid var(--c);
+  border-radius: 0.3vh;
+  background: var(--c-bg);
+}
+.md-ev .md-time { flex: 0 0 auto; font-size: 1.6vh; color: var(--c); font-variant-numeric: tabular-nums; }
+.md-ev .md-title { font-size: 2vh; color: var(--text); overflow-wrap: break-word; }
+.md-ev .md-loc { font-size: 1.5vh; color: var(--muted); margin-left: 0.6vh; }
 
 /* ============================ 設定モーダル ============================ */
 
