@@ -799,11 +799,15 @@ function renderMonthView() {
 
 /* 月間一覧で選ばれている日の予定を、下の詳細パネルに少し大きく表示する。
    グリッドのセルは小さくて読みにくいための補助。もう一度同じ日をタップ
-   すると1日表示に移動する(cellsのクリックハンドラ側で処理)。 */
+   すると1日表示に移動する(cellsのクリックハンドラ側で処理)。
+   パネルは月表示の間ずっと表示したまま(高さ固定)にする。表示/非表示を
+   切り替えるとカレンダーの高さが変わって「動いて」しまうため、
+   常に同じ場所に同じ高さで存在させ、中身の件数が多いときはパネル内で
+   スクロールさせる(高さはstyle.cssの.month-detailで固定)。 */
 function renderMonthDetail() {
   var box = $('month-detail');
-  var key = STATE.monthSelectedKey;
-  if (!key) { box.hidden = true; box.innerHTML = ''; return; }
+  var key = STATE.monthSelectedKey || defaultMonthSelection(STATE.viewDate);
+  STATE.monthSelectedKey = key;
 
   var p = key.split('-');
   var day = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
@@ -816,6 +820,7 @@ function renderMonthDetail() {
              '（' + DOW[day.getDay()] + '）</b><span>' + dayEvents.length + '件</span>' +
              '<span class="md-hint">もう一度タップでこの日を開く</span></div>';
 
+  html += '<div class="md-list">';
   if (dayEvents.length === 0) {
     html += '<div class="md-empty">予定はありません</div>';
   } else {
@@ -830,13 +835,27 @@ function renderMonthDetail() {
               '</div>';
     }
   }
+  html += '</div>';
   box.innerHTML = html;
   box.hidden = false;
 }
 
+/* 月表示に入った/月を切り替えたときに、最初から選んでおく日。
+   表示中の月に今日が含まれていれば今日を、含まれていなければ
+   その月の1日を選ぶ。これにより詳細パネルが常に何かしらの内容を
+   表示した状態になり、パネルの出現/消滅でカレンダーの高さが
+   変わって「動く」ことがなくなる。 */
+function defaultMonthSelection(viewDate) {
+  var today = startOfDay(new Date());
+  if (viewDate.getFullYear() === today.getFullYear() && viewDate.getMonth() === today.getMonth()) {
+    return ymd(today);
+  }
+  return ymd(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1));
+}
+
 function setMonthMode(on) {
   STATE.monthMode = on;
-  STATE.monthSelectedKey = null;
+  STATE.monthSelectedKey = on ? defaultMonthSelection(STATE.viewDate) : null;
   $('day-view').hidden = on;
   $('month-view').hidden = !on;
   $('btn-month').classList.toggle('active', on);
@@ -1342,7 +1361,7 @@ function init() {
     if (STATE.monthMode) {
       var d = STATE.viewDate;
       STATE.viewDate = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-      STATE.monthSelectedKey = null;
+      STATE.monthSelectedKey = defaultMonthSelection(STATE.viewDate);
     } else {
       STATE.viewDate = addDays(STATE.viewDate, -1);
     }
@@ -1352,7 +1371,7 @@ function init() {
     if (STATE.monthMode) {
       var d2 = STATE.viewDate;
       STATE.viewDate = new Date(d2.getFullYear(), d2.getMonth() + 1, 1);
-      STATE.monthSelectedKey = null;
+      STATE.monthSelectedKey = defaultMonthSelection(STATE.viewDate);
     } else {
       STATE.viewDate = addDays(STATE.viewDate, 1);
     }
@@ -1399,7 +1418,7 @@ function init() {
       if (STATE.monthMode) {
         var dm = STATE.viewDate;
         STATE.viewDate = new Date(dm.getFullYear(), dm.getMonth() + (dx < 0 ? 1 : -1), 1);
-        STATE.monthSelectedKey = null;
+        STATE.monthSelectedKey = defaultMonthSelection(STATE.viewDate);
       } else {
         STATE.viewDate = addDays(STATE.viewDate, dx < 0 ? 1 : -1);
       }

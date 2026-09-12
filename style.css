@@ -633,19 +633,21 @@ body.kiosk-mode.controls-visible .board-tools {
 .mc.narrow .mc-more { font-size: 8px; }
 
 /* 月表示のまま、選んだ日の予定を少し大きく見せる詳細パネル。
-   グリッドの下に出す(flex子として積む。.month-viewは既にflex縦並び)。 */
+   グリッドの下に出す(flex子として積む。.month-viewは既にflex縦並び)。
+   高さは固定(vh指定)にしてある。件数によって高さが変わると、月間
+   グリッド側の高さもつられて変わって「動く」ため、常に同じ高さを
+   確保しておき、中身が多いときは.md-list側だけでスクロールさせる。 */
 .month-detail {
-  flex: 0 0 auto;
-  max-height: 26vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  flex: 0 0 24vh;
+  height: 24vh;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line-soft);
   border-radius: 0.8vh;
   padding: 1vh 1.2vh;
   display: flex;
   flex-direction: column;
-  gap: 0.6vh;
+  gap: 0.5vh;
 }
 .month-detail[hidden] { display: none; }
 .md-head {
@@ -659,6 +661,15 @@ body.kiosk-mode.controls-visible .board-tools {
 .md-head b { font-weight: 700; }
 .md-head span { font-size: 1.7vh; color: var(--muted); }
 .md-hint { font-size: 1.5vh; color: var(--dim); }
+.md-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+}
 .md-empty { font-size: 1.8vh; color: var(--dim); }
 .md-ev {
   display: flex;
