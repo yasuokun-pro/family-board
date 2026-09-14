@@ -427,7 +427,7 @@ function fetchWeather() {
   var url = 'https://api.open-meteo.com/v1/forecast' +
             '?latitude=' + p.lat + '&longitude=' + p.lon +
             '&current=temperature_2m,weather_code,is_day' +
-            '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+            '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunset' +
             '&timezone=Asia%2FTokyo&forecast_days=8';
 
   fetch(url, { cache: 'no-store' })
@@ -454,6 +454,7 @@ function renderWeather() {
     $('wx-t').textContent = '--';
     $('wx-hl').textContent = '';
     $('wx-pop').textContent = '';
+    $('wx-sunset').textContent = '';
     return;
   }
 
@@ -464,6 +465,7 @@ function renderWeather() {
     $('wx-t').textContent = '--';
     $('wx-hl').textContent = '予報なし';
     $('wx-pop').textContent = '';
+    $('wx-sunset').textContent = '';
     return;
   }
 
@@ -489,6 +491,11 @@ function renderWeather() {
   $('wx-t').textContent = big;
   $('wx-hl').textContent = hi + '° / ' + lo + '°';
   $('wx-pop').textContent = (pop === null || pop === undefined) ? '' : '☂ ' + pop + '%';
+
+  // sunsetは"2026-09-14T17:52"のような現地時刻文字列（timezone=Asia/Tokyo指定のため
+  // 変換不要）。日付部分を捨てて時刻だけ取り出す。
+  var sunset = WX.daily.sunset && WX.daily.sunset[idx];
+  $('wx-sunset').textContent = sunset ? '日の入 ' + sunset.split('T')[1] : '';
 }
 
 /* 市区町村名 → 候補リスト（Open-Meteo のジオコーディング）

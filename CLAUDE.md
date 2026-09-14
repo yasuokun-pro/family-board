@@ -589,6 +589,27 @@ flexの行で包み、`justify-content:space-between`で日付=左・+N=右に
 りません」で失敗する可能性がある。数秒以内に同じ予定を連続編集する
 という稀なケースであり、待たされないメリットの方が大きいと判断した。
 
+## 日の入り時刻の表示（2026-09-14 追加）
+
+**要望:** 家族ボードの横向き表示に、日の入り時刻も出したい。
+
+**対応:** 天気取得は元々Open-Meteoの`daily`パラメータで
+`weather_code,temperature_2m_max,temperature_2m_min,
+precipitation_probability_max`を取っていたので、そこに`sunset`を
+追加しただけ（[app.js](app.js) `fetchWeather()`）。`timezone=Asia%2FTokyo`
+を指定済みのため、返ってくる`"2026-09-14T17:52"`のような文字列は
+すでに日本時間で、タイムゾーン変換は不要。`T`で分割して時刻部分だけ
+表示している（[renderWeather()](app.js)）。表示先は既存の天気ウィジェット
+内（`#wx-sunset`、[index.html](index.html)）。
+
+表示は最高/最低気温・降水確率と同じく、表示中の日付(`STATE.viewDate`)
+に応じて切り替わる（前後の日に移動すると日の入り時刻も変わる）。
+
+**「横向き時だけ」について:** 天気ウィジェット(`.wx`)は時計・月カレンダー
+と同じ`.side`パネルの中にあり、`.side`自体が縦向き
+（`@media (orientation: portrait)`）で丸ごと非表示になる作りに
+元々なっていたため、追加の分岐は不要だった。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）
