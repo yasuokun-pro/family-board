@@ -442,9 +442,17 @@ function fetchWeather() {
     .catch(function () { renderWeather(); });
 }
 
+/* 日の入り時刻は曜日バッジの隣に表示する（天気ウィジェットとは別の場所）。
+   ラベル文字は付けずアイコン＋時刻のみで横幅を節約している。 */
+function renderSunset(idx) {
+  var sunset = idx >= 0 && WX.daily && WX.daily.sunset && WX.daily.sunset[idx];
+  $('ck-sunset').hidden = !sunset;
+  $('ck-sunset-time').textContent = sunset ? sunset.split('T')[1] : '';
+}
+
 function renderWeather() {
   var box = $('wx');
-  if (!CFG.place || typeof CFG.place.lat !== 'number') { box.hidden = true; return; }
+  if (!CFG.place || typeof CFG.place.lat !== 'number') { box.hidden = true; renderSunset(-1); return; }
   box.hidden = false;
 
   $('wx-place').textContent = CFG.place.admin1 || CFG.place.name || '';
@@ -454,18 +462,18 @@ function renderWeather() {
     $('wx-t').textContent = '--';
     $('wx-hl').textContent = '';
     $('wx-pop').textContent = '';
-    $('wx-sunset').textContent = '';
+    renderSunset(-1);
     return;
   }
 
   var key = ymd(STATE.viewDate);
   var idx = WX.daily.time.indexOf(key);
+  renderSunset(idx);
   if (idx < 0) {   // 予報の範囲外（8日より先など）
     $('wx-icon').textContent = '—';
     $('wx-t').textContent = '--';
     $('wx-hl').textContent = '予報なし';
     $('wx-pop').textContent = '';
-    $('wx-sunset').textContent = '';
     return;
   }
 
@@ -491,11 +499,6 @@ function renderWeather() {
   $('wx-t').textContent = big;
   $('wx-hl').textContent = hi + '° / ' + lo + '°';
   $('wx-pop').textContent = (pop === null || pop === undefined) ? '' : '☂ ' + pop + '%';
-
-  // sunsetは"2026-09-14T17:52"のような現地時刻文字列（timezone=Asia/Tokyo指定のため
-  // 変換不要）。日付部分を捨てて時刻だけ取り出す。
-  var sunset = WX.daily.sunset && WX.daily.sunset[idx];
-  $('wx-sunset').textContent = sunset ? '日の入 ' + sunset.split('T')[1] : '';
 }
 
 /* 市区町村名 → 候補リスト（Open-Meteo のジオコーディング）
