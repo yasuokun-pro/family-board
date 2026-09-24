@@ -650,8 +650,16 @@ precipitation_probability_max`を取っていたので、そこに`sunset`を
 「実ID＋開始時刻」が両方一致する1件を最優先で採用。直接引き当ては最後の手段で、
 繰り返し予定なら採用しない。②更新は「削除→作り直し」をやめ、`updateEventInPlace`
 で`setTitle/setTime/setAllDayDate`等により**その1件だけをその場で書き換える**
-（IDも通知設定も引き継がれる。前々項の「直後に同じ予定を再編集すると見つからない」
-という弱点もほぼ解消）。
+（単発予定はIDも通知設定も引き継がれる）。
+**ただし繰り返し予定には②も効かない（実測）:** CalendarAppには「繰り返しの1回分だけ」
+を変更するAPIが無く、インスタンスに`setTime`/`deleteEvent`を呼ぶとシリーズ全体が
+動く／消える（in-place版をデプロイ後にも再現した）。`isRecurringEvent()`はインスタンスでも
+trueになる。そこで**採用した対策は「ボードから触らせない」**:
+- GAS: `doPost`のupdate/deleteで`isRecurringEvent()`なら`RECURRING_MSG`を返して拒否。
+  `pull()`は各予定に`recurring`フラグを付けて返す。
+- クライアント: `parseEvents`が`recurring`を持ち、`openEditEvent`で該当予定なら
+  「更新する」「削除」ボタンを無効化し、メッセージを表示（`openAddEvent`で解除）。
+繰り返し予定はGoogleカレンダー側で直す。
 
 **2) 過去の予定が取得範囲外:** `doGet`は「昨日から」しか返さず、先週の予定は
 ボードに出ないので編集もできなかった。`CONFIG.pastDays: 14` を追加し、14日前から
@@ -661,11 +669,12 @@ precipitation_probability_max`を取っていたので、そこに`sunset`を
 タップに反応しなかった。`#month-detail`に委譲クリックを追加し、詳細パネルの予定を
 タップすると編集が開く（[app.js](app.js) `initMonthDetailTap`）。
 
-**★デプロイ状況（要確認）:** 1)2)はGAS側の修正で、Apps Scriptへの反映が必要。
-この作業中、自動操作用のChromeが非表示状態（`document.visibilityState==='hidden'`、
-`requestAnimationFrame`が発火しない）になり、Apps Scriptエディタの保存が完了せず
-反映できなかった。**反映されるまで本番は旧コードのまま**なので、その間は
-繰り返し予定（スイミング等）の編集・削除をボードから行わないこと。
+**デプロイ状況:** GAS本番（デプロイID `AKfycbxkf4Kz…`）は**バージョン7**（2026-09-24 17:21）
+で上記ガード込み。実データで確認済み: 週次3回のテストシリーズの1回分をupdate/delete →
+どちらも`RECURRING_MSG`で拒否されシリーズ3件とも無傷／単発予定のupdateはIDを保ったまま
+日付変更できた。テスト予定は全部削除済み。クライアントはsw.js v30。
+デプロイ手順: 「デプロイを管理」→✏️→バージョン「新バージョン」→デプロイ
+（URLは変わらない）。
 
 **GASコードをエディタに入れる手順の知見:** 14KB超のソースは、①base64を小さな
 チャンク(各1800〜3600文字)に分け、各チャンクをJSで文字コード合計と長さで検算しながら

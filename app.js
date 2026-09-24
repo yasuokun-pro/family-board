@@ -182,7 +182,8 @@ function parseEvents(list) {
       start: s,
       end: en,
       location: e.location || '',
-      description: e.description || ''
+      description: e.description || '',
+      recurring: !!e.recurring
     });
   }
   return out;
@@ -1154,6 +1155,8 @@ function openAddEvent() {
   $('ae-heading').textContent = '予定を追加';
   $('ae-save').textContent = '追加する';
   $('ae-delete').hidden = true;
+  $('ae-save').disabled = false;
+  $('ae-delete').disabled = false;
   $('ae-msg').textContent = '';
   $('ae-title').value = '';
   $('ae-location').value = '';
@@ -1173,7 +1176,10 @@ function openEditEvent(ev) {
   $('ae-heading').textContent = '予定を編集';
   $('ae-save').textContent = '更新する';
   $('ae-delete').hidden = false;
-  $('ae-msg').textContent = '';
+  /* 繰り返し予定はカレンダー側で1件だけ直せず、全体が壊れるので、ボードからは触らせない */
+  $('ae-save').disabled = !!ev.recurring;
+  $('ae-delete').disabled = !!ev.recurring;
+  $('ae-msg').textContent = ev.recurring ? '繰り返し予定はボードから変更できません。Googleカレンダーで直してください' : '';
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
   $('ae-memo').value = ev.description || '';

@@ -113,6 +113,9 @@ function doGet(e) {
 
    id/calId は doGet が返す予定データの id/calId をそのまま返すこと。
    --------------------------------------------------------------------- */
+/* 繰り返し予定は、このコードを使うボードからは変更できない（本番データでシリーズごと消えることを確認）。 */
+var RECURRING_MSG = '繰り返し予定はボードから変更できません。Googleカレンダーで直してください';
+
 function doPost(e) {
   try {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
@@ -125,6 +128,7 @@ function doPost(e) {
       if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
       var target = findRawEvent(body.id, body.calId);
       if (!target) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
+      if (target.isRecurringEvent()) return json({ ok: false, error: RECURRING_MSG });
       target.deleteEvent();
       return json({ ok: true });
     }
@@ -137,6 +141,7 @@ function doPost(e) {
       if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
       var old = findRawEvent(body.id, body.calId);
       if (!old) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
+      if (old.isRecurringEvent()) return json({ ok: false, error: RECURRING_MSG });
       var updated = updateEventInPlace(old, fields);
       return json({ ok: true, id: updated.getId() });
     }
@@ -362,7 +367,8 @@ function pull(calId, defaultMember, from, to, out, seen, tagOnly) {
       start: start,
       end: end,
       location: ev.getLocation() || '',
-      description: ev.getDescription() || ''
+      description: ev.getDescription() || '',
+      recurring: ev.isRecurringEvent()
     });
   }
 }
@@ -474,3 +480,4 @@ function testAddEvent() {
   var res = doPost({ postData: { contents: JSON.stringify(body) } });
   Logger.log(res.getContent());
 }
+
