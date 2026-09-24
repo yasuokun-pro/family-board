@@ -717,6 +717,7 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .md-empty { font-size: 1.8vh; color: var(--dim); }
 .md-ev {
+  cursor: pointer;
   display: flex;
   align-items: baseline;
   gap: 1vh;

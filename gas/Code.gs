@@ -57,6 +57,10 @@ var CONFIG = {
   /* 空文字なら認証なし。設定すると ?key=... が必要になる。 */
   accessKey: '',
 
+  /* 何日前の予定から返すか。以前は「昨日から」だったため、先週の予定が
+     ボードに出ず、後から日付を直す/内容を確認することもできなかった。 */
+  pastDays: 14,
+
   timeZone: 'Asia/Tokyo'
 };
 
@@ -75,7 +79,7 @@ function doGet(e) {
     var days = Math.min(parseInt(params.days, 10) || 45, 120);
 
     var now = new Date();
-    var from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    var from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (CONFIG.pastDays || 1));
     var to   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
 
     var events = collectEvents(from, to);
@@ -133,7 +137,8 @@ function doPost(e) {
       if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
       var old = findRawEvent(body.id, body.calId);
       if (!old) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
-      old.deleteEvent();
+      var updated = updateEventInPlace(old, fields);
+      return json({ ok: true, id: updated.getId() });
     }
 
     var created = createEventInCalendar(fields);
@@ -191,36 +196,47 @@ function createEventInCalendar(f) {
   return cal.createEvent(f.fullTitle, f.start, f.end, { location: f.location, description: f.description });
 }
 
+/* 既存の予定を「その場で」書き換える。以前は古い予定を削除して作り直して
+   いたが、繰り返し予定の1回分を直そうとしたときにシリーズごと消えてしまう
+   事故が起きたため、setTitle/setTime等で該当の1件だけを直接更新する方式に
+   した（IDも変わらず、通知などの設定も引き継がれる）。
+   書き込み先のカレンダーが変わる場合だけは移せないので、作り直す。 */
+function updateEventInPlace(ev, f) {
+  if (ev.getOriginalCalendarId() !== f.calId) {
+    var created = createEventInCalendar(f);
+    ev.deleteEvent();
+    return created;
+  }
+  ev.setTitle(f.fullTitle);
+  ev.setLocation(f.location);
+  ev.setDescription(f.description);
+  if (f.allDay) {
+    ev.setAllDayDate(f.date);
+  } else {
+    ev.setTime(f.start, f.end);
+  }
+  return ev;
+}
+
 /* doGetが返す複合id("実イベントID@開始時刻ms")とcalIdから、
    実際のCalendarEventを引き当てる。実イベントID自体に"@"を含むことが
    多い(例: xxxx@google.com)ため、最後の"@"で区切る。
 
-   TimeTreeなど、Googleカレンダーの外から取り込まれた（＝Googleの
-   カレンダーUI以外の経路で作られた）予定は、getEventById() による
-   直接引き当てが失敗することがある（Apps Script/Calendar APIの
-   既知の制限。getEvents()一覧には出てくるのに、同じIDをgetEventById()
-   に渡すとnullが返る）。そのため直接引き当てがダメだったときは、
-   複合idに含まれる開始時刻の近辺だけをgetEvents()で素直に走査し、
-   getId()が一致するものを探す保険を用意した。 */
+   ★getEventById()だけに頼ってはいけない理由が2つある。
+   (1) TimeTreeなど外部から取り込まれた予定は、getEvents()一覧には出るのに
+       getEventById()ではnullが返る（既知の制限）。
+   (2) 繰り返し予定は、全ての回が同じIDを共有し、getEventById()は
+       「シリーズの最初の1件」しか返さない。これをそのまま削除/更新すると
+       意図しない回、または親を消してシリーズ全体が消える。
+   そのため、まず複合idの開始時刻の近辺をgetEvents()で走査し、
+   「実ID＋開始時刻」が両方一致する1件を探す。見つからないときだけ
+   getEventById()に頼るが、繰り返し予定だった場合は別の回の可能性が
+   あるため採用しない。 */
 function findRawEvent(compositeId, calId) {
   var s = String(compositeId);
   var idx = s.lastIndexOf('@');
   var rawId = idx >= 0 ? s.substring(0, idx) : s;
   var tsMs = idx >= 0 ? parseInt(s.substring(idx + 1), 10) : NaN;
-
-  try {
-    if (calId) {
-      var cal = CalendarApp.getCalendarById(calId);
-      if (cal) {
-        var ev = cal.getEventById(rawId);
-        if (ev) return ev;
-      }
-    }
-    var direct = CalendarApp.getEventById(rawId);
-    if (direct) return direct;
-  } catch (e) {
-    // 直接引き当てで例外が出ても、下の走査に進む
-  }
 
   if (calId && !isNaN(tsMs)) {
     try {
@@ -231,12 +247,26 @@ function findRawEvent(compositeId, calId) {
         var to = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 2);
         var candidates = cal2.getEvents(from, to);
         for (var i = 0; i < candidates.length; i++) {
-          if (candidates[i].getId() === rawId) return candidates[i];
+          if (candidates[i].getId() === rawId && candidates[i].getStartTime().getTime() === tsMs) {
+            return candidates[i];
+          }
         }
       }
     } catch (e2) {
-      // 見つからなければ下でnullを返す
+      // 走査に失敗したら下の直接引き当てに進む
     }
+  }
+
+  try {
+    var direct = null;
+    if (calId) {
+      var cal = CalendarApp.getCalendarById(calId);
+      if (cal) direct = cal.getEventById(rawId);
+    }
+    if (!direct) direct = CalendarApp.getEventById(rawId);
+    if (direct && !direct.isRecurringEvent()) return direct;
+  } catch (e) {
+    // 見つからなければ下でnullを返す
   }
 
   return null;

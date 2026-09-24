@@ -864,7 +864,7 @@ function renderMonthDetail() {
       var ev = dayEvents[i];
       var mem = memberByKey(ev.member);
       var time = ev.allDay ? '終日' : hhmm(ev.start);
-      html += '<div class="md-ev" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' +
+      html += '<div class="md-ev" data-id="' + esc(ev.id) + '" style="--c:' + mem.color + ';--c-bg:' + mix(mem.color, 0.22) + '">' +
                 '<span class="md-time">' + time + '</span>' +
                 '<span class="md-title">' + esc(ev.title) + '</span>' +
                 (ev.location ? '<span class="md-loc">' + esc(ev.location) + '</span>' : '') +
@@ -962,6 +962,18 @@ function eventById(id) {
 function initAgendaTap() {
   $('agenda').addEventListener('click', function (ev) {
     var row = ev.target.closest('.ag-ev');
+    if (!row) return;
+    var found = eventById(row.getAttribute('data-id'));
+    if (found) openEditEvent(found);
+  });
+}
+
+/* 月表示の詳細パネルの予定をタップしても編集を開けるようにする。
+   以前はアジェンダ(縦向きの1日表示)の行しかタップできず、月表示で
+   その日の予定を見ているときに「直したい」と思っても開けなかった。 */
+function initMonthDetailTap() {
+  $('month-detail').addEventListener('click', function (ev) {
+    var row = ev.target.closest('.md-ev');
     if (!row) return;
     var found = eventById(row.getAttribute('data-id'));
     if (found) openEditEvent(found);
@@ -1454,6 +1466,7 @@ function init() {
   $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
   initAgendaTap();
+  initMonthDetailTap();
   $('ae-allday').addEventListener('change', function () {
     $('ae-time-row').hidden = this.checked;
   });
