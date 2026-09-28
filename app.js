@@ -25,16 +25,16 @@ var SHARED = { key: 'shared', label: 'みんな', color: '#B98BFF' };
    夏休み・冬休み・学級閉鎖などの臨時休業は判定できないので、
    「平日かつ祝日でない日は授業がある」という前提で計算する。 */
 var SCHOOL_MEMBER_KEY = 'son1';
+/* ボードの帯は幅が狭く文字が潰れるため、連続する短い区分（朝学習＋学活、
+   給食＋清掃）はまとめて1つの帯にしている。 */
 var SCHOOL_SCHEDULE = [
-  { name: '朝学習', start: '08:15', end: '08:30' },
-  { name: '学活',   start: '08:30', end: '08:40' },
+  { name: '朝の会',   start: '08:15', end: '08:40' },   /* 朝学習+学活 */
   { name: '1校時', start: '08:45', end: '09:30' },
   { name: '2校時', start: '09:35', end: '10:20' },
   { name: '中休み', start: '10:20', end: '10:40' },
   { name: '3校時', start: '10:40', end: '11:25' },
   { name: '4校時', start: '11:30', end: '12:15' },
-  { name: '給食',   start: '12:15', end: '12:55' },
-  { name: '清掃',   start: '12:55', end: '13:10' },
+  { name: '給食清掃', start: '12:15', end: '13:10' },   /* 給食+清掃 */
   { name: '昼休み', start: '13:10', end: '13:20' },
   { name: '5校時', start: '13:25', end: '14:10' },
   { name: '6校時', start: '14:15', end: '15:00' },
@@ -58,18 +58,24 @@ function isSchoolDay(day) {
   return true;
 }
 
-/* その日の「学校」という予定（タイトルに「学校」を含む、終日ではない予定）の
-   終了時刻＝下校時刻を返す。無ければnull（＝下校時刻不明・通常の時程のまま）。
+/* 学校の予定のタイトルは「学校」だけでなく「未来塾」「児童集会」
+   「◯◯締切」等その日の行事名になっていることが多く、タイトルでは
+   判定できない。ただしメモ欄には毎回「下校：14:25」のように実際の
+   下校時刻が書かれているので、そこから読み取る。
    下校時刻がわかれば、それより後に終わる時限はその日は無かったことにできる
-   （早く下校した日に、まだ授業中であるかのように出てしまうのを防ぐ）。 */
+   （早く下校した日に、まだ授業中であるかのように出てしまうのを防ぐ）。
+   見つからなければnull（＝下校時刻不明・通常の時程のまま表示）。 */
+var DISMISSAL_RE = /下校[:：]\s*(\d{1,2}):(\d{2})/;
 function schoolDismissal(day) {
   var end = null;
   for (var i = 0; i < STATE.events.length; i++) {
     var e = STATE.events[i];
     if (e.allDay || e.member !== SCHOOL_MEMBER_KEY) continue;
     if (ymd(e.start) !== ymd(day)) continue;
-    if (e.title.indexOf('学校') === -1) continue;
-    if (!end || e.end > end) end = e.end;
+    var m = DISMISSAL_RE.exec(e.description || '');
+    if (!m) continue;
+    var d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), parseInt(m[1], 10), parseInt(m[2], 10));
+    if (!end || d > end) end = d;
   }
   return end;
 }
