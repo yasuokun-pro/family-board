@@ -41,6 +41,10 @@ var SCHOOL_SCHEDULE = [
   { name: '終学活', start: '15:00', end: '15:15' }
 ];
 
+/* 表示ボードで長男のレーンを2列に分けるときの、予定側（左列）の幅の割合。
+   残り(100-これ)%が時限の帯（右列）になる。 */
+var SCHOOL_EVENT_ZONE = 60;
+
 function schoolMin(hhmm) {
   var p = hhmm.split(':');
   return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
@@ -54,13 +58,38 @@ function isSchoolDay(day) {
   return true;
 }
 
-/* 「いま」が村山学園の時程のどこに当たるかを返す（授業日でなければnull） */
+/* その日の「学校」という予定（タイトルに「学校」を含む、終日ではない予定）の
+   終了時刻＝下校時刻を返す。無ければnull（＝下校時刻不明・通常の時程のまま）。
+   下校時刻がわかれば、それより後に終わる時限はその日は無かったことにできる
+   （早く下校した日に、まだ授業中であるかのように出てしまうのを防ぐ）。 */
+function schoolDismissal(day) {
+  var end = null;
+  for (var i = 0; i < STATE.events.length; i++) {
+    var e = STATE.events[i];
+    if (e.allDay || e.member !== SCHOOL_MEMBER_KEY) continue;
+    if (ymd(e.start) !== ymd(day)) continue;
+    if (e.title.indexOf('学校') === -1) continue;
+    if (!end || e.end > end) end = e.end;
+  }
+  return end;
+}
+
+/* その日に実際に表示すべき時限の一覧（下校時刻より後に終わるものは除外） */
+function schoolPeriodsFor(day) {
+  var dismiss = schoolDismissal(day);
+  if (!dismiss) return SCHOOL_SCHEDULE;
+  var limit = dismiss.getHours() * 60 + dismiss.getMinutes();
+  return SCHOOL_SCHEDULE.filter(function (p) { return schoolMin(p.end) <= limit; });
+}
+
+/* 「いま」が村山学園の時程のどこに当たるかを返す（授業日でない・下校済みならnull） */
 function currentSchoolPeriod() {
   var now = new Date();
   if (!isSchoolDay(now)) return null;
+  var periods = schoolPeriodsFor(now);
   var mins = now.getHours() * 60 + now.getMinutes();
-  for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
-    var p = SCHOOL_SCHEDULE[i];
+  for (var i = 0; i < periods.length; i++) {
+    var p = periods[i];
     if (mins >= schoolMin(p.start) && mins < schoolMin(p.end)) return p;
   }
   return null;
@@ -68,35 +97,37 @@ function currentSchoolPeriod() {
 
 /* 長男のレーン見出し（ボード／アジェンダ両方）に「いま何時限目か」を反映する。
    見出し自体はrenderBoard/renderAgendaが再構築するたび作り直されるが、
-   このバッジだけは同じidを使い回し、tickClock()から毎秒直接書き換える。 */
-function paintSchoolBadge(id) {
+   このバッジだけは同じidを使い回し、tickClock()から毎秒直接書き換える。
+   withTimeがtrueのときだけ「（開始〜終了）」を末尾に付ける（縦向きiPhone用）。 */
+function paintSchoolBadge(id, withTime) {
   var el = document.getElementById(id);
   if (!el) return;
   var p = currentSchoolPeriod();
   if (p) {
     el.hidden = false;
-    el.textContent = '🏫 ' + p.name + '中';
+    el.textContent = '🏫 ' + p.name + '中' + (withTime ? '（' + p.start + '〜' + p.end + '）' : '');
   } else {
     el.hidden = true;
     el.textContent = '';
   }
 }
 function updateSchoolBadges() {
-  paintSchoolBadge('lh-school');
-  paintSchoolBadge('ag-school');
+  paintSchoolBadge('lh-school', false);
+  paintSchoolBadge('ag-school', true);
 }
 
 /* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
-   HTML（.laneの中に、予定より下に敷く背景帯として挿入する）。 */
+   HTML（レーンの右列＝.school-colの中に、予定より下に敷く背景帯として挿入する）。 */
 function schoolBandsHtml(day, sh, eh) {
   if (!isSchoolDay(day)) return '';
+  var periods = schoolPeriodsFor(day);
   var spanMin = (eh - sh) * 60;
   var now = new Date();
   var isViewingToday = ymd(day) === ymd(now);
   var nowMin = now.getHours() * 60 + now.getMinutes();
   var html = '';
-  for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
-    var p = SCHOOL_SCHEDULE[i];
+  for (var i = 0; i < periods.length; i++) {
+    var p = periods[i];
     var s = schoolMin(p.start), e = schoolMin(p.end);
     var sMin = s - sh * 60, eMin = e - sh * 60;
     if (eMin <= 0 || sMin >= spanMin) continue;   // 表示時間帯の外
@@ -748,8 +779,12 @@ function renderBoard() {
 
   for (var L = 0; L < lanes.length; L++) {
     var mem2 = lanes[L];
+    /* 長男は、学校がある日はレーンを2列に分け、左に予定・右に時限の帯を出す
+       （同じ幅いっぱいに重ねると、予定の下に時限の帯が隠れて見えなくなるため）。 */
+    var splitSchool = mem2.key === SCHOOL_MEMBER_KEY && isSchoolDay(day);
+    var eventZone = splitSchool ? SCHOOL_EVENT_ZONE : 100;
     var mine = packLane(dayEvents.filter(function (e) { return !e.allDay && e.member === mem2.key; }));
-    var body = (mem2.key === SCHOOL_MEMBER_KEY) ? schoolBandsHtml(day, sh, eh) : '';
+    var body = splitSchool ? ('<div class="school-col">' + schoolBandsHtml(day, sh, eh) + '</div>') : '';
 
     for (var k = 0; k < mine.length; k++) {
       var ev = mine[k];
@@ -762,7 +797,7 @@ function renderBoard() {
 
       var top = (sMin / spanMin) * 100;
       var hgt = Math.max(((eMin - sMin) / spanMin) * 100, 2.2);
-      var w = 100 / ev._cols;
+      var w = eventZone / ev._cols;
       var left = w * ev._col;
 
       var isPast = en < now && ymd(day) === ymd(now);

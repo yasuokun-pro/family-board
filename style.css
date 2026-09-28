@@ -537,8 +537,16 @@ body.kiosk-mode.controls-visible .board-tools {
   background: var(--c-bg2);
 }
 
-/* 長男レーンに敷く「ここからここが何時限目」の帯（村山学園の時程）。
-   予定(.ev)より先にDOMへ入れているので、実際の予定はこの上に重なって表示される。 */
+/* 長男レーンの右列（学校がある日だけ）に時限の帯を敷くための領域。
+   予定は左列(SCHOOL_EVENT_ZONE%)だけに収まるので、この列とは重ならない。 */
+.school-col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 60%;
+  right: 0;
+  border-left: 1px dashed var(--line-soft);
+}
 .school-band {
   position: absolute;
   left: 0;
@@ -546,6 +554,7 @@ body.kiosk-mode.controls-visible .board-tools {
   background: var(--panel-2);
   border-top: 1px solid var(--line-soft);
   box-sizing: border-box;
+  overflow: hidden;
 }
 .school-band.now {
   background: rgba(79, 163, 255, 0.16);
@@ -553,11 +562,14 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .school-band-label {
   position: absolute;
-  left: 0.5vh;
+  left: 0.4vh;
+  right: 0.2vh;
   top: 0.1vh;
-  font-size: 1.4vh;
+  font-size: 1.3vh;
   color: var(--dim);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .school-band.now .school-band-label {
   color: var(--text);
