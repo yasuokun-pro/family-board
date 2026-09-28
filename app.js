@@ -25,18 +25,36 @@ var SHARED = { key: 'shared', label: 'みんな', color: '#B98BFF' };
    夏休み・冬休み・学級閉鎖などの臨時休業は判定できないので、
    「平日かつ祝日でない日は授業がある」という前提で計算する。 */
 var SCHOOL_MEMBER_KEY = 'son1';
-/* ボードの帯は幅が狭く文字が潰れるため、連続する短い区分（朝学習＋学活、
-   給食＋清掃＋昼休み）はまとめて1つの帯にしている。昼休みは10分しかなく
-   単独の帯にすると文字が入らないため、給食清掃の帯の中に「note」として
-   埋め込み、その時間帯だけ点線の枠＋ラベルで示す（帯自体は分けない）。 */
-var SCHOOL_SCHEDULE = [
-  { name: '朝の会',   start: '08:15', end: '08:40' },   /* 朝学習+学活 */
+
+/* 時限表ポップアップ（タップで表示）で使う、正確な区分の一覧。 */
+var SCHOOL_SCHEDULE_FULL = [
+  { name: '朝学習', start: '08:15', end: '08:30' },
+  { name: '学活',   start: '08:30', end: '08:40' },
   { name: '1校時', start: '08:45', end: '09:30' },
   { name: '2校時', start: '09:35', end: '10:20' },
   { name: '中休み', start: '10:20', end: '10:40' },
   { name: '3校時', start: '10:40', end: '11:25' },
   { name: '4校時', start: '11:30', end: '12:15' },
-  { name: '給食清掃', start: '12:15', end: '13:20',      /* 給食+清掃+昼休み */
+  { name: '給食',   start: '12:15', end: '12:55' },
+  { name: '清掃',   start: '12:55', end: '13:10' },
+  { name: '昼休み', start: '13:10', end: '13:20' },
+  { name: '5校時', start: '13:25', end: '14:10' },
+  { name: '6校時', start: '14:15', end: '15:00' },
+  { name: '終学活', start: '15:00', end: '15:15' }
+];
+
+/* ボードの帯は幅が狭く文字が潰れるため、連続する短い区分（朝学習＋学活、
+   給食＋清掃＋昼休み）はまとめて1つの帯にしている。区分名が複数文字で
+   1行に収まらない場合は`lines`で行を分けて表示する（点線の注釈枠は
+   分かりにくかったのでやめ、行を分けるだけにした）。 */
+var SCHOOL_SCHEDULE = [
+  { name: '朝の会',   start: '08:15', end: '08:40' },
+  { name: '1校時', start: '08:45', end: '09:30' },
+  { name: '2校時', start: '09:35', end: '10:20' },
+  { name: '中休み', start: '10:20', end: '10:40' },
+  { name: '3校時', start: '10:40', end: '11:25' },
+  { name: '4校時', start: '11:30', end: '12:15' },
+  { name: '給食清掃', lines: ['給食', '清掃', '昼休み'], start: '12:15', end: '13:20',
     note: { name: '昼休み', start: '13:10', end: '13:20' } },
   { name: '5校時', start: '13:25', end: '14:10' },
   { name: '6校時', start: '14:15', end: '15:00' },
@@ -125,6 +143,22 @@ function updateSchoolBadges() {
   paintSchoolBadge('ag-school', true);
 }
 
+/* 時限表ポップアップ（ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジから開く）。
+   ボードの帯は分かりやすさのため区分をまとめたり行を分けたりしているので、
+   正確な時刻はこちらでSCHOOL_SCHEDULE_FULLをそのまま表にして見せる。 */
+function openSchoolTable() {
+  var rows = '';
+  for (var i = 0; i < SCHOOL_SCHEDULE_FULL.length; i++) {
+    var p = SCHOOL_SCHEDULE_FULL[i];
+    rows += '<tr><th>' + esc(p.name) + '</th><td>' + p.start + '〜' + p.end + '</td></tr>';
+  }
+  $('school-table').innerHTML = rows;
+  $('modal-school').hidden = false;
+}
+function closeSchoolTable() {
+  $('modal-school').hidden = true;
+}
+
 /* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
    HTML（レーンの右列＝.school-colの中に、予定より下に敷く背景帯として挿入する）。 */
 function schoolBandsHtml(day, sh, eh) {
@@ -146,36 +180,36 @@ function schoolBandsHtml(day, sh, eh) {
     var hgt = ((eMin - sMin) / spanMin) * 100;
     var isNow = isViewingToday && nowMin >= s && nowMin < e;
 
-    /* note（昼休みなど）があれば、帯の中の該当区間だけ点線の枠とラベルを重ねる。
-       位置はこの帯自身の高さに対する割合（top/hgtとは別の入れ子の%基準）。 */
-    var noteHtml = '';
-    if (p.note) {
-      var ns = schoolMin(p.note.start), ne = schoolMin(p.note.end);
-      var bandDur = e - s;
-      var noteTop = ((ns - s) / bandDur) * 100;
-      var noteHgt = ((ne - ns) / bandDur) * 100;
-      var noteIsNow = isViewingToday && nowMin >= ns && nowMin < ne;
-      noteHtml = '<span class="school-note-label' + (noteIsNow ? ' now' : '') + '" style="top:calc(' + noteTop + '% - 1.3vh)">' + esc(p.note.name) + '</span>' +
-                 '<div class="school-note' + (noteIsNow ? ' now' : '') + '" style="top:' + noteTop + '%;height:' + noteHgt + '%"></div>';
+    /* lines（給食/清掃/昼休みのように1行に入らない区分）があれば、行に分けて
+       表示する（以前は点線の枠で区切っていたが分かりにくかったのでやめた）。 */
+    var labelHtml;
+    if (p.lines) {
+      labelHtml = '<span class="school-band-label multi">';
+      for (var j = 0; j < p.lines.length; j++) labelHtml += '<span>' + esc(p.lines[j]) + '</span>';
+      labelHtml += '</span>';
+    } else {
+      labelHtml = '<span class="school-band-label">' + esc(p.name) + '</span>';
     }
 
     html += '<div class="school-band' + (isNow ? ' now' : '') + '" style="top:' + top + '%;height:' + hgt + '%">' +
-              '<span class="school-band-label">' + esc(p.name) + '</span>' +
-              noteHtml +
+              labelHtml +
             '</div>';
   }
   return html;
 }
 
 /* 右列（時限の帯）の幅を、文字が潰れない最小限まで詰める。SCHOOL_SCHEDULEの中で
-   一番長いラベル（noteのラベルも含む）を実際のフォントサイズで測り、CSS変数
-   --school-col-w に反映する（sizeHours()と同じ「実測してCSS変数に渡す」手法）。 */
+   一番長い「1行」を実際のフォントサイズで測り、CSS変数--school-col-wに反映する
+   （sizeHours()と同じ「実測してCSS変数に渡す」手法）。lines持ちの区分は行ごとに
+   比較するので、幅は各行の最長文字数だけで決まる。 */
 function sizeSchoolCol() {
   var longest = '';
   for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
     var p = SCHOOL_SCHEDULE[i];
-    if (p.name.length > longest.length) longest = p.name;
-    if (p.note && p.note.name.length > longest.length) longest = p.note.name;
+    var candidates = p.lines || [p.name];
+    for (var j = 0; j < candidates.length; j++) {
+      if (candidates[j].length > longest.length) longest = candidates[j];
+    }
   }
   var probe = document.createElement('span');
   probe.style.cssText = 'position:absolute; visibility:hidden; left:-9999px; top:-9999px; white-space:nowrap; font-size:1.3vh; font-weight:600;';
@@ -1670,6 +1704,21 @@ function init() {
   });
   $('modal-add').addEventListener('click', function (ev) {
     if (ev.target === $('modal-add')) closeAddEvent();
+  });
+
+  // 時限表: ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジをタップして開く
+  $('lanes-head').addEventListener('click', function (ev) {
+    if (ev.target.closest('.lh-school')) openSchoolTable();
+  });
+  $('lanes').addEventListener('click', function (ev) {
+    if (ev.target.closest('.school-col')) openSchoolTable();
+  });
+  $('agenda').addEventListener('click', function (ev) {
+    if (ev.target.closest('.ag-school')) openSchoolTable();
+  });
+  $('school-close').addEventListener('click', closeSchoolTable);
+  $('modal-school').addEventListener('click', function (ev) {
+    if (ev.target === $('modal-school')) closeSchoolTable();
   });
 
   // 左右スワイプで日付移動

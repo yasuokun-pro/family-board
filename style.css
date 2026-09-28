@@ -416,13 +416,14 @@ body.kiosk-mode.controls-visible .board-tools {
   margin-top: 0.1vh;
 }
 
-/* 長男レーンの「いま何時限目か」バッジ（村山学園の時程） */
+/* 長男レーンの「いま何時限目か」バッジ（村山学園の時程）。タップで時限表を開く。 */
 .lh .lh-school {
   display: block;
   font-size: 1.5vh;
   font-weight: 600;
   color: var(--text);
   margin-top: 0.1vh;
+  cursor: pointer;
 }
 .lh .lh-school[hidden] { display: none; }
 
@@ -548,6 +549,7 @@ body.kiosk-mode.controls-visible .board-tools {
   right: 0;
   width: var(--school-col-w, 6vh);
   border-left: 1px dashed var(--line-soft);
+  cursor: pointer;
 }
 .school-band {
   position: absolute;
@@ -577,35 +579,15 @@ body.kiosk-mode.controls-visible .board-tools {
   color: var(--text);
   font-weight: 600;
 }
-
-/* 給食清掃の帯の中に埋め込む「昼休み」の点線枠と、その上に乗せるラベル。
-   枠自体は帯の高さに対する%位置なのでごく薄くなるが、ラベルはcalc()で
-   vh単位のぶんだけ上にずらすことで、枠の薄さに関係なく読める高さを保つ。 */
-.school-note {
-  position: absolute;
-  left: 0.2vh;
-  right: 0.2vh;
-  border: 1px dashed var(--dim);
-  border-radius: 0.3vh;
-  box-sizing: border-box;
-  pointer-events: none;
-}
-.school-note.now {
-  border-color: rgba(79, 163, 255, 0.7);
-}
-.school-note-label {
-  position: absolute;
-  left: 0.4vh;
-  font-size: 1vh;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: calc(100% - 0.6vh);
-}
-.school-note-label.now {
-  color: var(--text);
-  font-weight: 600;
+/* 給食清掃のように1行に収まらない区分は、点線で区切るのではなく単純に
+   行を分けて縦に並べる（給食／清掃／昼休み）。帯の高さいっぱいを使う。 */
+.school-band-label.multi {
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
 }
 
 .empty-lane {
@@ -1014,6 +996,29 @@ body.kiosk-mode.controls-visible .board-tools {
   margin: 1.4vh 0 0;
 }
 
+/* --- 時限表ポップアップ --- */
+.school-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.school-table th, .school-table td {
+  text-align: left;
+  padding: 0.7vh 0.6vh;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.school-table th {
+  color: var(--text);
+  white-space: nowrap;
+}
+.school-table td {
+  color: var(--muted);
+}
+.school-table tr:last-child th, .school-table tr:last-child td {
+  border-bottom: none;
+}
+
 /* ============================ 縦向きのとき ============================ */
 /* 縦向き＝各自のiPhoneで手に持って予定を確認する用途と想定し、
    時計・カレンダー・天気は隠して予定表示だけに絞る
@@ -1073,6 +1078,7 @@ body.kiosk-mode.controls-visible .board-tools {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text);
+  cursor: pointer;
 }
 .ag-head .ag-school[hidden] { display: none; }
 
