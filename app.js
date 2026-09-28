@@ -26,7 +26,9 @@ var SHARED = { key: 'shared', label: 'みんな', color: '#B98BFF' };
    「平日かつ祝日でない日は授業がある」という前提で計算する。 */
 var SCHOOL_MEMBER_KEY = 'son1';
 /* ボードの帯は幅が狭く文字が潰れるため、連続する短い区分（朝学習＋学活、
-   給食＋清掃）はまとめて1つの帯にしている。 */
+   給食＋清掃＋昼休み）はまとめて1つの帯にしている。昼休みは10分しかなく
+   単独の帯にすると文字が入らないため、給食清掃の帯の中に「note」として
+   埋め込み、その時間帯だけ点線の枠＋ラベルで示す（帯自体は分けない）。 */
 var SCHOOL_SCHEDULE = [
   { name: '朝の会',   start: '08:15', end: '08:40' },   /* 朝学習+学活 */
   { name: '1校時', start: '08:45', end: '09:30' },
@@ -34,16 +36,12 @@ var SCHOOL_SCHEDULE = [
   { name: '中休み', start: '10:20', end: '10:40' },
   { name: '3校時', start: '10:40', end: '11:25' },
   { name: '4校時', start: '11:30', end: '12:15' },
-  { name: '給食清掃', start: '12:15', end: '13:10' },   /* 給食+清掃 */
-  { name: '昼休み', start: '13:10', end: '13:20' },
+  { name: '給食清掃', start: '12:15', end: '13:20',      /* 給食+清掃+昼休み */
+    note: { name: '昼休み', start: '13:10', end: '13:20' } },
   { name: '5校時', start: '13:25', end: '14:10' },
   { name: '6校時', start: '14:15', end: '15:00' },
   { name: '終学活', start: '15:00', end: '15:15' }
 ];
-
-/* 表示ボードで長男のレーンを2列に分けるときの、予定側（左列）の幅の割合。
-   残り(100-これ)%が時限の帯（右列）になる。 */
-var SCHOOL_EVENT_ZONE = 60;
 
 function schoolMin(hhmm) {
   var p = hhmm.split(':');
@@ -88,7 +86,9 @@ function schoolPeriodsFor(day) {
   return SCHOOL_SCHEDULE.filter(function (p) { return schoolMin(p.end) <= limit; });
 }
 
-/* 「いま」が村山学園の時程のどこに当たるかを返す（授業日でない・下校済みならnull） */
+/* 「いま」が村山学園の時程のどこに当たるかを返す（授業日でない・下校済みならnull）。
+   給食清掃の帯のうち昼休みの時間帯にいるときは、帯自体は1つでも
+   バッジには「給食清掃中」ではなく「昼休み中」を返す。 */
 function currentSchoolPeriod() {
   var now = new Date();
   if (!isSchoolDay(now)) return null;
@@ -96,7 +96,10 @@ function currentSchoolPeriod() {
   var mins = now.getHours() * 60 + now.getMinutes();
   for (var i = 0; i < periods.length; i++) {
     var p = periods[i];
-    if (mins >= schoolMin(p.start) && mins < schoolMin(p.end)) return p;
+    if (mins >= schoolMin(p.start) && mins < schoolMin(p.end)) {
+      if (p.note && mins >= schoolMin(p.note.start) && mins < schoolMin(p.note.end)) return p.note;
+      return p;
+    }
   }
   return null;
 }
@@ -142,11 +145,46 @@ function schoolBandsHtml(day, sh, eh) {
     var top = (sMin / spanMin) * 100;
     var hgt = ((eMin - sMin) / spanMin) * 100;
     var isNow = isViewingToday && nowMin >= s && nowMin < e;
+
+    /* note（昼休みなど）があれば、帯の中の該当区間だけ点線の枠とラベルを重ねる。
+       位置はこの帯自身の高さに対する割合（top/hgtとは別の入れ子の%基準）。 */
+    var noteHtml = '';
+    if (p.note) {
+      var ns = schoolMin(p.note.start), ne = schoolMin(p.note.end);
+      var bandDur = e - s;
+      var noteTop = ((ns - s) / bandDur) * 100;
+      var noteHgt = ((ne - ns) / bandDur) * 100;
+      var noteIsNow = isViewingToday && nowMin >= ns && nowMin < ne;
+      noteHtml = '<span class="school-note-label' + (noteIsNow ? ' now' : '') + '" style="top:calc(' + noteTop + '% - 1.3vh)">' + esc(p.note.name) + '</span>' +
+                 '<div class="school-note' + (noteIsNow ? ' now' : '') + '" style="top:' + noteTop + '%;height:' + noteHgt + '%"></div>';
+    }
+
     html += '<div class="school-band' + (isNow ? ' now' : '') + '" style="top:' + top + '%;height:' + hgt + '%">' +
               '<span class="school-band-label">' + esc(p.name) + '</span>' +
+              noteHtml +
             '</div>';
   }
   return html;
+}
+
+/* 右列（時限の帯）の幅を、文字が潰れない最小限まで詰める。SCHOOL_SCHEDULEの中で
+   一番長いラベル（noteのラベルも含む）を実際のフォントサイズで測り、CSS変数
+   --school-col-w に反映する（sizeHours()と同じ「実測してCSS変数に渡す」手法）。 */
+function sizeSchoolCol() {
+  var longest = '';
+  for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
+    var p = SCHOOL_SCHEDULE[i];
+    if (p.name.length > longest.length) longest = p.name;
+    if (p.note && p.note.name.length > longest.length) longest = p.note.name;
+  }
+  var probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute; visibility:hidden; left:-9999px; top:-9999px; white-space:nowrap; font-size:1.3vh; font-weight:600;';
+  probe.textContent = longest;
+  document.body.appendChild(probe);
+  var textW = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+  var vh = window.innerHeight / 100;
+  document.documentElement.style.setProperty('--school-col-w', Math.ceil(textW + 0.6 * vh) + 'px');
 }
 
 /* ------------------------------------------------------------------
@@ -788,7 +826,6 @@ function renderBoard() {
     /* 長男は、学校がある日はレーンを2列に分け、左に予定・右に時限の帯を出す
        （同じ幅いっぱいに重ねると、予定の下に時限の帯が隠れて見えなくなるため）。 */
     var splitSchool = mem2.key === SCHOOL_MEMBER_KEY && isSchoolDay(day);
-    var eventZone = splitSchool ? SCHOOL_EVENT_ZONE : 100;
     var mine = packLane(dayEvents.filter(function (e) { return !e.allDay && e.member === mem2.key; }));
     var body = splitSchool ? ('<div class="school-col">' + schoolBandsHtml(day, sh, eh) + '</div>') : '';
 
@@ -803,8 +840,21 @@ function renderBoard() {
 
       var top = (sMin / spanMin) * 100;
       var hgt = Math.max(((eMin - sMin) / spanMin) * 100, 2.2);
-      var w = eventZone / ev._cols;
-      var left = w * ev._col;
+
+      /* 学校がある日の長男は、右列(--school-col-w、文字が潰れない最小幅)を
+         除いた残りだけが予定の置き場所になる。calc()で「レーン幅 - 右列px」を
+         _cols等分する（右列の幅はJSではなくCSS変数として実測されるため）。 */
+      var leftExpr, widthExpr;
+      if (splitSchool) {
+        var frac = 1 / ev._cols;
+        var fracLeft = ev._col / ev._cols;
+        leftExpr = 'calc((100% - var(--school-col-w) - 0.3vh) * ' + fracLeft + ' + 0.4vh)';
+        widthExpr = 'calc((100% - var(--school-col-w) - 0.3vh) * ' + frac + ' - 0.8vh)';
+      } else {
+        var wPct = 100 / ev._cols;
+        leftExpr = 'calc(' + (wPct * ev._col) + '% + 0.4vh)';
+        widthExpr = 'calc(' + wPct + '% - 0.8vh)';
+      }
 
       var isPast = en < now && ymd(day) === ymd(now);
       var isLive = s <= now && en > now && ymd(day) === ymd(now);
@@ -813,7 +863,7 @@ function renderBoard() {
       body += '<div class="ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') + '"' +
               ' style="--c:' + mem2.color + ';--c-bg:' + mix(mem2.color, 0.22) + ';--c-bg2:' + mix(mem2.color, 0.34) + ';' +
               'top:' + top + '%;height:' + hgt + '%;' +
-              'left:calc(' + left + '% + 0.4vh);width:calc(' + w + '% - 0.8vh);">' +
+              'left:' + leftExpr + ';width:' + widthExpr + ';">' +
                 '<div class="ev-t">' + hhmm(ev.start) + '–' + hhmm(ev.end) + '</div>' +
                 '<div class="ev-n">' + esc(ev.title) + '</div>' +
                 (ev.location ? '<div class="ev-loc">' + esc(ev.location) + '</div>' : '') +
@@ -826,6 +876,7 @@ function renderBoard() {
   $('lanes').innerHTML = lanesHtml;
 
   sizeHours();
+  sizeSchoolCol();
   updateNowLine();
   updateSchoolBadges();
 }
@@ -1561,7 +1612,7 @@ function init() {
     }
   }, 30000);
 
-  window.addEventListener('resize', function () { sizeHours(); updateNowLine(); });
+  window.addEventListener('resize', function () { sizeHours(); sizeSchoolCol(); updateNowLine(); });
   window.addEventListener('orientationchange', function () { setTimeout(renderAll, 300); });
 
   document.addEventListener('visibilitychange', function () {

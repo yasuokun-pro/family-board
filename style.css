@@ -538,13 +538,15 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 
 /* 長男レーンの右列（学校がある日だけ）に時限の帯を敷くための領域。
-   予定は左列(SCHOOL_EVENT_ZONE%)だけに収まるので、この列とは重ならない。 */
+   幅は固定割合ではなく、文字が潰れない最小限を sizeSchoolCol() が実測して
+   --school-col-w に入れる（未計算時は6vhにしておく）。予定はこの列の外側
+   だけに収まるので、重ならない。 */
 .school-col {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 60%;
   right: 0;
+  width: var(--school-col-w, 6vh);
   border-left: 1px dashed var(--line-soft);
 }
 .school-band {
@@ -572,6 +574,36 @@ body.kiosk-mode.controls-visible .board-tools {
   text-overflow: ellipsis;
 }
 .school-band.now .school-band-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 給食清掃の帯の中に埋め込む「昼休み」の点線枠と、その上に乗せるラベル。
+   枠自体は帯の高さに対する%位置なのでごく薄くなるが、ラベルはcalc()で
+   vh単位のぶんだけ上にずらすことで、枠の薄さに関係なく読める高さを保つ。 */
+.school-note {
+  position: absolute;
+  left: 0.2vh;
+  right: 0.2vh;
+  border: 1px dashed var(--dim);
+  border-radius: 0.3vh;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.school-note.now {
+  border-color: rgba(79, 163, 255, 0.7);
+}
+.school-note-label {
+  position: absolute;
+  left: 0.4vh;
+  font-size: 1vh;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 0.6vh);
+}
+.school-note-label.now {
   color: var(--text);
   font-weight: 600;
 }
