@@ -538,11 +538,23 @@ body.kiosk-mode.controls-visible .board-tools {
   background: var(--c-bg2);
 }
 /* 送り・迎え・付き添いの担当ぶんに表示している予定（本人の予定ではない）。
-   色は元の持ち主のままにしているので、枠を点線にして区別する。 */
+   色は元の持ち主のままにしているので、背景だけ少し変えて区別する。
+   付き添いは予定の時間帯まるごとなので点線の枠も付ける。送り・迎えは
+   開始/終了の1点だけの短い印なので、枠は付けない（.escort-point側で
+   短い予定でも時刻を隠さないようにしている）。 */
 .ev.escort {
-  border-left-style: dashed;
   background: rgba(255, 255, 255, 0.04);
   opacity: 0.9;
+}
+.ev.escort-block {
+  border-left-style: dashed;
+}
+.ev.escort-point.short .ev-t {
+  display: block;
+  font-size: 1.3vh;
+}
+.ev.escort-point.short .ev-n {
+  font-size: 1.6vh;
 }
 
 /* 長男レーンの右列（学校がある日だけ）に時限の帯を敷くための領域。

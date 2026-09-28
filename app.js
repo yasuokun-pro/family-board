@@ -949,33 +949,67 @@ function escortRolesFor(ev, memberKey) {
   return roles;
 }
 
+/* 送り・迎えは「その瞬間」の目印なので、予定の全時間帯を占領する帯にはせず、
+   開始時刻（送り）／終了時刻（迎え）のところに短い印（既定15分ぶん）だけを置く。
+   付き添いは実際に一緒にいる時間なので、これまで通り予定の全時間帯のまま。 */
+var ESCORT_MARKER_MIN = 15;
+
 /* あるレーン(memberKey)に出す予定の一覧。本人の予定に加えて、本人が
-   送り・迎え・付き添いの担当になっている「他の人の予定」も、担当した
-   役割のラベル付きで混ぜて返す（時間帯はそのまま。重なりはpackLaneに任せる）。 */
+   送り・迎え・付き添いの担当になっている「他の人の予定」も混ぜて返す
+   （役割ごとに1件ずつのコピーにする。同じ人が送りと迎えの両方でも、
+   別々の印として置きたいため）。重なりはpackLaneに任せる。 */
 function eventsForLaneWithEscort(dayEvents, memberKey) {
   var out = [];
   for (var i = 0; i < dayEvents.length; i++) {
     var e = dayEvents[i];
     if (e.member === memberKey) { out.push(e); continue; }
     var roles = escortRolesFor(e, memberKey);
-    if (roles.length === 0) continue;
-    var copy = {};
-    for (var k in e) { if (Object.prototype.hasOwnProperty.call(e, k)) copy[k] = e[k]; }
-    copy._escortRoles = roles;
-    out.push(copy);
+    for (var r = 0; r < roles.length; r++) {
+      var role = roles[r];
+      var copy = {};
+      for (var k in e) { if (Object.prototype.hasOwnProperty.call(e, k)) copy[k] = e[k]; }
+      copy._escortRole = role;
+      copy._escortOrigStart = e.start;
+      copy._escortOrigEnd = e.end;
+      if (!e.allDay && role === 'dropoff') {
+        copy.start = e.start;
+        copy.end = new Date(Math.min(e.end.getTime(), e.start.getTime() + ESCORT_MARKER_MIN * 60000));
+      } else if (!e.allDay && role === 'pickup') {
+        copy.end = e.end;
+        copy.start = new Date(Math.max(e.start.getTime(), e.end.getTime() - ESCORT_MARKER_MIN * 60000));
+      }
+      out.push(copy);
+    }
   }
   return out;
 }
 
 /* 予定の見出し(タイトル)。送迎の担当として出しているコピーには、
    役割のアイコンと名前を頭に付けて「これは自分の予定ではなく担当だ」と
-   分かるようにする（例: 🚗送り: サッカー練習）。 */
+   分かるようにする（例: 🚗送り：長男のサッカー練習）。時刻はboardTimeLabel()/
+   agendaTimeHtml()側で出すので、ここには含めない。 */
 function eventDisplayTitle(ev) {
-  if (!ev._escortRoles || !ev._escortRoles.length) return ev.title;
-  var labels = ev._escortRoles.map(function (r) { return ESCORT_LABELS[r]; }).join('・');
-  var icon = ESCORT_ICONS[ev._escortRoles[0]];
+  if (!ev._escortRole) return ev.title;
+  var icon = ESCORT_ICONS[ev._escortRole];
+  var label = ESCORT_LABELS[ev._escortRole];
   var owner = memberByKey(ev.member).label;
-  return icon + labels + '：' + owner + 'の' + ev.title;
+  return icon + label + '：' + owner + 'の' + ev.title;
+}
+
+/* 表示ボードの時刻表示。送り・迎えの印は範囲ではなく元の予定の該当する
+   1点（送りなら開始・迎えなら終了）だけを見せる。 */
+function boardTimeLabel(ev) {
+  if (ev._escortRole === 'dropoff') return hhmm(ev._escortOrigStart);
+  if (ev._escortRole === 'pickup') return hhmm(ev._escortOrigEnd);
+  return hhmm(ev.start) + '–' + hhmm(ev.end);
+}
+
+/* 縦向き(アジェンダ)の時刻表示。考え方はboardTimeLabel()と同じ。 */
+function agendaTimeHtml(ev) {
+  if (ev.allDay) return '終日';
+  if (ev._escortRole === 'dropoff') return hhmm(ev._escortOrigStart);
+  if (ev._escortRole === 'pickup') return hhmm(ev._escortOrigEnd);
+  return hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>';
 }
 
 function renderBoard() {
@@ -1075,16 +1109,21 @@ function renderBoard() {
       var isPast = en < now && ymd(day) === ymd(now);
       var isLive = s <= now && en > now && ymd(day) === ymd(now);
       var isShort = (eMin - sMin) < 50;
-      var isEscort = !!(ev._escortRoles && ev._escortRoles.length);
+      var isEscort = !!ev._escortRole;
+      var isEscortBlock = ev._escortRole === 'accompany';
+      var isEscortPoint = ev._escortRole === 'dropoff' || ev._escortRole === 'pickup';
       /* 送迎の担当ぶんは、本人の予定ではなく「誰かの予定に付いている」ことが
-         分かるよう、色はその予定の本来の持ち主のままにし、枠を点線にする。 */
+         分かるよう、色はその予定の本来の持ち主のままにする。付き添いは
+         時間帯まるごとなので点線の枠、送り・迎えは一瞬の印なので枠は付けない。 */
       var evColor = isEscort ? memberByKey(ev.member).color : mem2.color;
+      var evClass = 'ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') +
+                    (isEscort ? ' escort' : '') + (isEscortBlock ? ' escort-block' : '') + (isEscortPoint ? ' escort-point' : '');
 
-      body += '<div class="ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') + (isEscort ? ' escort' : '') + '"' +
+      body += '<div class="' + evClass + '"' +
               ' style="--c:' + evColor + ';--c-bg:' + mix(evColor, 0.22) + ';--c-bg2:' + mix(evColor, 0.34) + ';' +
               'top:' + top + '%;height:' + hgt + '%;' +
               'left:' + leftExpr + ';width:' + widthExpr + ';">' +
-                '<div class="ev-t">' + hhmm(ev.start) + '–' + hhmm(ev.end) + '</div>' +
+                '<div class="ev-t">' + boardTimeLabel(ev) + '</div>' +
                 '<div class="ev-n">' + esc(eventDisplayTitle(ev)) + '</div>' +
                 (ev.location ? '<div class="ev-loc">' + esc(ev.location) + '</div>' : '') +
               '</div>';
@@ -1348,10 +1387,9 @@ function renderAgenda() {
     for (var i = 0; i < mine.length; i++) {
       var ev = mine[i];
       var isPast = !ev.allDay && ev.end < now && ymd(day) === ymd(now);
-      var isEscort = !!(ev._escortRoles && ev._escortRoles.length);
-      var time = ev.allDay ? '終日' : (hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>');
+      var isEscort = !!ev._escortRole;
       html += '<div class="ag-ev' + (isPast ? ' past' : '') + (isEscort ? ' escort' : '') + '" data-id="' + esc(ev.id) + '">' +
-                '<div class="ag-time">' + time + '</div>' +
+                '<div class="ag-time">' + agendaTimeHtml(ev) + '</div>' +
                 '<div class="ag-body">' +
                   '<div class="ag-title">' + esc(eventDisplayTitle(ev)) + '</div>' +
                   (ev.location ? '<div class="ag-loc">' + esc(ev.location) + '</div>' : '') +
