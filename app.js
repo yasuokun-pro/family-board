@@ -141,6 +141,25 @@ function paintSchoolBadge(id, withTime) {
 function updateSchoolBadges() {
   paintSchoolBadge('lh-school', false);
   paintSchoolBadge('ag-school', true);
+  repaintSchoolTableNow();
+}
+
+/* 「いま」がSCHOOL_SCHEDULE_FULLの何行目に当たるかを返す（無ければ-1）。
+   時限表は朝学習/学活や給食/清掃/昼休みも別行にしてあるので、バッジ用の
+   currentSchoolPeriod()（まとめた区分ベース）とは別に、行単位で判定する。
+   下校時刻より後に終わる行は、その日は無かったことにして対象から外す。 */
+function currentFullPeriodIndex() {
+  var now = new Date();
+  if (!isSchoolDay(now)) return -1;
+  var dismiss = schoolDismissal(now);
+  var limit = dismiss ? (dismiss.getHours() * 60 + dismiss.getMinutes()) : Infinity;
+  var mins = now.getHours() * 60 + now.getMinutes();
+  for (var i = 0; i < SCHOOL_SCHEDULE_FULL.length; i++) {
+    var p = SCHOOL_SCHEDULE_FULL[i];
+    if (schoolMin(p.end) > limit) continue;
+    if (mins >= schoolMin(p.start) && mins < schoolMin(p.end)) return i;
+  }
+  return -1;
 }
 
 /* 時限表パネル（ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジから開く）。
@@ -149,18 +168,33 @@ function updateSchoolBadges() {
    設定パネル等の.modalと違って全画面の背景を敷かない浮かせ表示なので、
    長男の予定を隠さないよう、タップした場所（anchorRect）のすぐ横に出す。 */
 function openSchoolTable(anchorRect) {
+  var nowIdx = currentFullPeriodIndex();
   var rows = '';
   for (var i = 0; i < SCHOOL_SCHEDULE_FULL.length; i++) {
     var p = SCHOOL_SCHEDULE_FULL[i];
-    rows += '<tr><th>' + esc(p.name) + '</th><td>' + p.start + '〜' + p.end + '</td></tr>';
+    rows += '<tr' + (i === nowIdx ? ' class="now"' : '') + '><th>' + esc(p.name) + '</th><td>' + p.start + '〜' + p.end + '</td></tr>';
   }
   $('school-table').innerHTML = rows;
   var flyout = $('school-flyout');
   flyout.hidden = false;
   if (anchorRect) positionSchoolFlyout(anchorRect);
+  var nowRow = $('school-table').querySelector('tr.now');
+  if (nowRow && nowRow.scrollIntoView) nowRow.scrollIntoView({ block: 'center' });
 }
 function closeSchoolTable() {
   $('school-flyout').hidden = true;
+}
+
+/* 時限表を開いたまま時限が切り替わっても強調表示が追従するよう、
+   毎秒(tickClock経由)呼ぶ。行を作り直さず、クラスの付け替えだけで済ませる。 */
+function repaintSchoolTableNow() {
+  var flyout = $('school-flyout');
+  if (flyout.hidden) return;
+  var nowIdx = currentFullPeriodIndex();
+  var rows = $('school-table').querySelectorAll('tr');
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.toggle('now', i === nowIdx);
+  }
 }
 
 /* anchorRect(タップした要素のgetBoundingClientRect())の右隣にパネルを置く。

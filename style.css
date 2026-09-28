@@ -1070,6 +1070,19 @@ body.kiosk-mode.controls-visible .board-tools {
 .school-table tr:last-child th, .school-table tr:last-child td {
   border-bottom: none;
 }
+/* いま授業中（休み時間・給食等も含む）の行を強調する。tickClock経由で
+   repaintSchoolTableNow()が毎秒クラスを付け替えるので、開いたまま
+   時限が切り替わっても追従する。 */
+.school-table tr.now th, .school-table tr.now td {
+  background: rgba(79, 163, 255, 0.16);
+  color: var(--text);
+  font-weight: 600;
+}
+.school-table tr.now th {
+  /* 左に色帯を足す分、文字がずれないよう元のpadding-left(0.4vh)を相殺する */
+  border-left: 0.4vh solid #4FA3FF;
+  padding-left: 0;
+}
 
 /* ============================ 縦向きのとき ============================ */
 /* 縦向き＝各自のiPhoneで手に持って予定を確認する用途と想定し、
