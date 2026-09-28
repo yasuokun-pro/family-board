@@ -143,20 +143,53 @@ function updateSchoolBadges() {
   paintSchoolBadge('ag-school', true);
 }
 
-/* 時限表ポップアップ（ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジから開く）。
+/* 時限表パネル（ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジから開く）。
    ボードの帯は分かりやすさのため区分をまとめたり行を分けたりしているので、
-   正確な時刻はこちらでSCHOOL_SCHEDULE_FULLをそのまま表にして見せる。 */
-function openSchoolTable() {
+   正確な時刻はこちらでSCHOOL_SCHEDULE_FULLをそのまま表にして見せる。
+   設定パネル等の.modalと違って全画面の背景を敷かない浮かせ表示なので、
+   長男の予定を隠さないよう、タップした場所（anchorRect）のすぐ横に出す。 */
+function openSchoolTable(anchorRect) {
   var rows = '';
   for (var i = 0; i < SCHOOL_SCHEDULE_FULL.length; i++) {
     var p = SCHOOL_SCHEDULE_FULL[i];
     rows += '<tr><th>' + esc(p.name) + '</th><td>' + p.start + '〜' + p.end + '</td></tr>';
   }
   $('school-table').innerHTML = rows;
-  $('modal-school').hidden = false;
+  var flyout = $('school-flyout');
+  flyout.hidden = false;
+  if (anchorRect) positionSchoolFlyout(anchorRect);
 }
 function closeSchoolTable() {
-  $('modal-school').hidden = true;
+  $('school-flyout').hidden = true;
+}
+
+/* anchorRect(タップした要素のgetBoundingClientRect())の右隣にパネルを置く。
+   右にはみ出す場合は左隣に、下にはみ出す場合は画面内に収まる位置まで引き上げる。 */
+function positionSchoolFlyout(anchorRect) {
+  var flyout = $('school-flyout');
+  var margin = 8;
+  var fw = flyout.offsetWidth;
+  var fh = flyout.offsetHeight;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+
+  var left = anchorRect.right + margin;
+  if (left + fw > vw - margin) left = anchorRect.left - fw - margin;
+  left = Math.max(margin, Math.min(left, vw - fw - margin));
+
+  var top = anchorRect.top;
+  top = Math.max(margin, Math.min(top, vh - fh - margin));
+
+  flyout.style.left = left + 'px';
+  flyout.style.top = top + 'px';
+}
+
+/* 長男のレーン全体（時限の帯を含む列）の位置。ボード側でバッジ・帯どちらを
+   タップしても、同じ位置（長男のレーンの右隣）にパネルを出すために使う。 */
+function schoolLaneRect() {
+  var col = document.querySelector('.school-col');
+  var lane = col && col.closest('.lane');
+  return lane ? lane.getBoundingClientRect() : null;
 }
 
 /* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
@@ -1706,19 +1739,24 @@ function init() {
     if (ev.target === $('modal-add')) closeAddEvent();
   });
 
-  // 時限表: ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジをタップして開く
+  // 時限表: ボードの🏫バッジ・時限の帯、アジェンダの🏫バッジをタップして開く。
+  // ev.stopPropagation()で止めておかないと、同じクリックがdocumentまで
+  // 伝わって「外側タップで閉じる」の判定に引っかかり、開いた瞬間に閉じてしまう。
   $('lanes-head').addEventListener('click', function (ev) {
-    if (ev.target.closest('.lh-school')) openSchoolTable();
+    if (ev.target.closest('.lh-school')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); }
   });
   $('lanes').addEventListener('click', function (ev) {
-    if (ev.target.closest('.school-col')) openSchoolTable();
+    if (ev.target.closest('.school-col')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); }
   });
   $('agenda').addEventListener('click', function (ev) {
-    if (ev.target.closest('.ag-school')) openSchoolTable();
+    var badge = ev.target.closest('.ag-school');
+    if (badge) { ev.stopPropagation(); openSchoolTable(badge.getBoundingClientRect()); }
   });
   $('school-close').addEventListener('click', closeSchoolTable);
-  $('modal-school').addEventListener('click', function (ev) {
-    if (ev.target === $('modal-school')) closeSchoolTable();
+  // パネルの外側をタップしたら閉じる（設定等の.modalと違い背景を敷いていないため）
+  document.addEventListener('click', function (ev) {
+    var flyout = $('school-flyout');
+    if (!flyout.hidden && !flyout.contains(ev.target)) closeSchoolTable();
   });
 
   // 左右スワイプで日付移動
