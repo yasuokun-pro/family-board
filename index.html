@@ -146,6 +146,23 @@
       <textarea id="ae-memo" rows="2" placeholder="例: 水筒とタオルを持たせる"></textarea>
     </label>
 
+    <div class="fld escort-fld">
+      <span>送り・迎え・付き添い（任意・複数人チェック可）</span>
+      <div class="escort-row">
+        <span class="escort-role-label">送り</span>
+        <div class="escort-picks" id="ae-escort-dropoff"></div>
+      </div>
+      <div class="escort-row">
+        <span class="escort-role-label">迎え</span>
+        <div class="escort-picks" id="ae-escort-pickup"></div>
+      </div>
+      <div class="escort-row">
+        <span class="escort-role-label">付き添い</span>
+        <div class="escort-picks" id="ae-escort-accompany"></div>
+      </div>
+      <small>チェックした人の画面にも、この予定がそのまま表示されます。</small>
+    </div>
+
     <div class="modal-actions">
       <span class="modal-msg" id="ae-msg"></span>
       <button class="btn danger" id="ae-delete" hidden>削除する</button>

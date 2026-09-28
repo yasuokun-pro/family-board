@@ -537,6 +537,13 @@ body.kiosk-mode.controls-visible .board-tools {
   box-shadow: 0 0 0 0.25vh var(--c), 0 0.5vh 1.5vh rgba(0,0,0,0.5);
   background: var(--c-bg2);
 }
+/* 送り・迎え・付き添いの担当ぶんに表示している予定（本人の予定ではない）。
+   色は元の持ち主のままにしているので、枠を点線にして区別する。 */
+.ev.escort {
+  border-left-style: dashed;
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0.9;
+}
 
 /* 長男レーンの右列（学校がある日だけ）に時限の帯を敷くための領域。
    幅は固定割合ではなく、文字が潰れない最小限を sizeSchoolCol() が実測して
@@ -909,6 +916,28 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .am-pick.sel { background: var(--c); color: #0B0F14; }
 
+/* --- 予定追加：送り・迎え・付き添いの担当 --- */
+.escort-fld { margin-bottom: 1.6vh; }
+.escort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0.6vh;
+}
+.escort-role-label {
+  flex: 0 0 auto;
+  width: 4.4em;
+  font-size: 13px;
+  color: var(--muted);
+}
+.escort-picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.escort-fld small {
+  display: block;
+  margin-top: 0.8vh;
+  font-size: 1.4vh;
+  color: var(--dim);
+}
+
 .members { display: flex; gap: 0.8vh; flex-wrap: wrap; }
 .member-in {
   flex: 1 1 18%;
@@ -1155,6 +1184,9 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .ag-ev:last-child { border-bottom: none; }
 .ag-ev.past { opacity: 0.45; }
+/* 送り・迎え・付き添いの担当ぶん（自分の予定ではない）は少し控えめに */
+.ag-ev.escort { opacity: 0.8; }
+.ag-ev.escort .ag-title { font-style: italic; }
 
 .ag-time {
   flex: 0 0 auto;

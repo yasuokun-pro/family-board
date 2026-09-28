@@ -289,6 +289,77 @@ function sizeSchoolCol() {
 }
 
 /* ------------------------------------------------------------------
+   1.6 送り・迎え・付き添い（担当）
+   Googleカレンダーの予定には専用の項目が無いので、メモ欄(description)の
+   末尾に目印付きの行として埋め込む。担当は役割ごとに複数人チェック可
+   （父母両方が付き添う、等）。他の端末もdescriptionを読むだけで
+   同じ担当を見られる（GAS側の変更は不要）。 */
+var ESCORT_ROLES = ['dropoff', 'pickup', 'accompany'];
+var ESCORT_LABELS = { dropoff: '送り', pickup: '迎え', accompany: '付き添い' };
+var ESCORT_ICONS  = { dropoff: '🚗', pickup: '🚗', accompany: '🧑‍🤝‍🧑' };
+var ESCORT_MARK = '――― 送迎 ―――';
+var ESCORT_LINE_RE = {
+  dropoff:   /送り[:：]\s*([^\n]*)/,
+  pickup:    /迎え[:：]\s*([^\n]*)/,
+  accompany: /付き添い[:：]\s*([^\n]*)/
+};
+
+function emptyEscort() { return { dropoff: [], pickup: [], accompany: [] }; }
+
+/* 送迎の担当欄に書かれた1トークンを、メンバーのkeyに変換する。
+   アプリが書き込むときは常にkey（father等）で書くが、Googleカレンダー側で
+   手入力する場合にも困らないよう、いまの表示名（設定でラベルを変えていても）
+   や素の日本語（父・母・長男・次男・長女）でも拾えるようにしている。 */
+var ESCORT_JA_ALIASES = { father: '父', mother: '母', son1: '長男', son2: '次男', daughter: '長女' };
+function resolveMemberToken(token) {
+  token = String(token || '').trim();
+  if (!token) return null;
+  var all = memberList();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].key === token || all[i].label === token) return all[i].key;
+  }
+  for (var key in ESCORT_JA_ALIASES) {
+    if (ESCORT_JA_ALIASES[key] === token) return key;
+  }
+  return null;
+}
+
+/* description全体を「メモ本文」と「送迎の担当」に切り分ける */
+function parseEscort(description) {
+  var text = description || '';
+  var idx = text.indexOf(ESCORT_MARK);
+  if (idx === -1) return { memo: text, escort: emptyEscort() };
+
+  var memo = text.slice(0, idx).replace(/\n+$/, '');
+  var block = text.slice(idx + ESCORT_MARK.length);
+  var escort = emptyEscort();
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    var role = ESCORT_ROLES[i];
+    var m = ESCORT_LINE_RE[role].exec(block);
+    if (m && m[1].trim()) {
+      var tokens = m[1].split(/[,、]/).map(function (s) { return resolveMemberToken(s); }).filter(Boolean);
+      escort[role] = tokens;
+    }
+  }
+  return { memo: memo, escort: escort };
+}
+
+/* メモ本文＋担当から、Googleカレンダーに書き込むdescription文字列を組み立てる。
+   担当が誰もいなければ目印ごと付けず、メモ本文だけを返す（描く跡を残さない）。 */
+function buildDescriptionWithEscort(memo, escort) {
+  var lines = [];
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    var role = ESCORT_ROLES[i];
+    if (escort[role] && escort[role].length) {
+      lines.push(ESCORT_LABELS[role] + ': ' + escort[role].join(','));
+    }
+  }
+  var body = (memo || '').replace(/\n+$/, '');
+  if (lines.length === 0) return body;
+  return (body ? body + '\n\n' : '') + ESCORT_MARK + '\n' + lines.join('\n');
+}
+
+/* ------------------------------------------------------------------
    2. 設定（localStorage）
    ------------------------------------------------------------------ */
 var DEFAULTS = {
@@ -444,6 +515,7 @@ function parseEvents(list) {
     var s = parseWhen(e.start, e.allDay);
     var en = parseWhen(e.end, e.allDay);
     if (isNaN(s.getTime()) || isNaN(en.getTime())) continue;
+    var parsedDesc = parseEscort(e.description || '');
     out.push({
       id: e.id || ('e' + i),
       calId: e.calId || '',
@@ -454,6 +526,8 @@ function parseEvents(list) {
       end: en,
       location: e.location || '',
       description: e.description || '',
+      memo: parsedDesc.memo,
+      escort: parsedDesc.escort,
       recurring: !!e.recurring
     });
   }
@@ -863,6 +937,47 @@ function packLane(list) {
   return sorted;
 }
 
+/* その予定でmemberKeyが送り・迎え・付き添いの担当になっていれば、
+   役割の配列（例: ['dropoff']）を返す。担当でなければ空配列。 */
+function escortRolesFor(ev, memberKey) {
+  var roles = [];
+  if (!ev.escort) return roles;
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    var role = ESCORT_ROLES[i];
+    if (ev.escort[role] && ev.escort[role].indexOf(memberKey) >= 0) roles.push(role);
+  }
+  return roles;
+}
+
+/* あるレーン(memberKey)に出す予定の一覧。本人の予定に加えて、本人が
+   送り・迎え・付き添いの担当になっている「他の人の予定」も、担当した
+   役割のラベル付きで混ぜて返す（時間帯はそのまま。重なりはpackLaneに任せる）。 */
+function eventsForLaneWithEscort(dayEvents, memberKey) {
+  var out = [];
+  for (var i = 0; i < dayEvents.length; i++) {
+    var e = dayEvents[i];
+    if (e.member === memberKey) { out.push(e); continue; }
+    var roles = escortRolesFor(e, memberKey);
+    if (roles.length === 0) continue;
+    var copy = {};
+    for (var k in e) { if (Object.prototype.hasOwnProperty.call(e, k)) copy[k] = e[k]; }
+    copy._escortRoles = roles;
+    out.push(copy);
+  }
+  return out;
+}
+
+/* 予定の見出し(タイトル)。送迎の担当として出しているコピーには、
+   役割のアイコンと名前を頭に付けて「これは自分の予定ではなく担当だ」と
+   分かるようにする（例: 🚗送り: サッカー練習）。 */
+function eventDisplayTitle(ev) {
+  if (!ev._escortRoles || !ev._escortRoles.length) return ev.title;
+  var labels = ev._escortRoles.map(function (r) { return ESCORT_LABELS[r]; }).join('・');
+  var icon = ESCORT_ICONS[ev._escortRoles[0]];
+  var owner = memberByKey(ev.member).label;
+  return icon + labels + '：' + owner + 'の' + ev.title;
+}
+
 function renderBoard() {
   var day = STATE.viewDate;
   var today = startOfDay(new Date());
@@ -885,7 +1000,7 @@ function renderBoard() {
   var headHtml = '<div></div>';
   for (var i = 0; i < lanes.length; i++) {
     var mem = lanes[i];
-    var cnt = dayEvents.filter(function (e) { return e.member === mem.key; }).length;
+    var cnt = eventsForLaneWithEscort(dayEvents, mem.key).length;
     var schoolBadge = (mem.key === SCHOOL_MEMBER_KEY) ? '<span class="lh-school" id="lh-school" hidden></span>' : '';
     headHtml += '<div class="lh" style="--c:' + mem.color + '">' + esc(mem.label) +
                 schoolBadge +
@@ -898,10 +1013,10 @@ function renderBoard() {
   var adHtml = '<div class="ad-cell">' + (adAny ? '<span class="ad-lbl">終日</span>' : '') + '</div>';
   for (var a = 0; a < lanes.length; a++) {
     var mm = lanes[a];
-    var ads = dayEvents.filter(function (e) { return e.allDay && e.member === mm.key; });
+    var ads = eventsForLaneWithEscort(dayEvents, mm.key).filter(function (e) { return e.allDay; });
     var inner = '';
     for (var b = 0; b < ads.length; b++) {
-      inner += '<div class="ad-ev" style="--c:' + mm.color + '">' + esc(ads[b].title) + '</div>';
+      inner += '<div class="ad-ev" style="--c:' + mm.color + '">' + esc(eventDisplayTitle(ads[b])) + '</div>';
     }
     adHtml += '<div class="ad-cell">' + inner + '</div>';
   }
@@ -927,7 +1042,7 @@ function renderBoard() {
     /* 長男は、学校がある日はレーンを2列に分け、左に予定・右に時限の帯を出す
        （同じ幅いっぱいに重ねると、予定の下に時限の帯が隠れて見えなくなるため）。 */
     var splitSchool = mem2.key === SCHOOL_MEMBER_KEY && isSchoolDay(day);
-    var mine = packLane(dayEvents.filter(function (e) { return !e.allDay && e.member === mem2.key; }));
+    var mine = packLane(eventsForLaneWithEscort(dayEvents, mem2.key).filter(function (e) { return !e.allDay; }));
     var body = splitSchool ? ('<div class="school-col">' + schoolBandsHtml(day, sh, eh) + '</div>') : '';
 
     for (var k = 0; k < mine.length; k++) {
@@ -960,13 +1075,17 @@ function renderBoard() {
       var isPast = en < now && ymd(day) === ymd(now);
       var isLive = s <= now && en > now && ymd(day) === ymd(now);
       var isShort = (eMin - sMin) < 50;
+      var isEscort = !!(ev._escortRoles && ev._escortRoles.length);
+      /* 送迎の担当ぶんは、本人の予定ではなく「誰かの予定に付いている」ことが
+         分かるよう、色はその予定の本来の持ち主のままにし、枠を点線にする。 */
+      var evColor = isEscort ? memberByKey(ev.member).color : mem2.color;
 
-      body += '<div class="ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') + '"' +
-              ' style="--c:' + mem2.color + ';--c-bg:' + mix(mem2.color, 0.22) + ';--c-bg2:' + mix(mem2.color, 0.34) + ';' +
+      body += '<div class="ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') + (isEscort ? ' escort' : '') + '"' +
+              ' style="--c:' + evColor + ';--c-bg:' + mix(evColor, 0.22) + ';--c-bg2:' + mix(evColor, 0.34) + ';' +
               'top:' + top + '%;height:' + hgt + '%;' +
               'left:' + leftExpr + ';width:' + widthExpr + ';">' +
                 '<div class="ev-t">' + hhmm(ev.start) + '–' + hhmm(ev.end) + '</div>' +
-                '<div class="ev-n">' + esc(ev.title) + '</div>' +
+                '<div class="ev-n">' + esc(eventDisplayTitle(ev)) + '</div>' +
                 (ev.location ? '<div class="ev-loc">' + esc(ev.location) + '</div>' : '') +
               '</div>';
     }
@@ -1215,7 +1334,7 @@ function renderAgenda() {
   var html = '';
   for (var m = 0; m < order.length; m++) {
     var mem = order[m];
-    var mine = dayEvents.filter(function (e) { return e.member === mem.key; });
+    var mine = eventsForLaneWithEscort(dayEvents, mem.key);
     /* 長男(SCHOOL_MEMBER_KEY)は、その日に予定が1件もなくても
        学校の時程バッジを出したいので、授業日ならグループ自体は残す。 */
     var isSchoolLane = mem.key === SCHOOL_MEMBER_KEY && isSchoolDay(day);
@@ -1229,11 +1348,12 @@ function renderAgenda() {
     for (var i = 0; i < mine.length; i++) {
       var ev = mine[i];
       var isPast = !ev.allDay && ev.end < now && ymd(day) === ymd(now);
+      var isEscort = !!(ev._escortRoles && ev._escortRoles.length);
       var time = ev.allDay ? '終日' : (hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>');
-      html += '<div class="ag-ev' + (isPast ? ' past' : '') + '" data-id="' + esc(ev.id) + '">' +
+      html += '<div class="ag-ev' + (isPast ? ' past' : '') + (isEscort ? ' escort' : '') + '" data-id="' + esc(ev.id) + '">' +
                 '<div class="ag-time">' + time + '</div>' +
                 '<div class="ag-body">' +
-                  '<div class="ag-title">' + esc(ev.title) + '</div>' +
+                  '<div class="ag-title">' + esc(eventDisplayTitle(ev)) + '</div>' +
                   (ev.location ? '<div class="ag-loc">' + esc(ev.location) + '</div>' : '') +
                 '</div>' +
               '</div>';
@@ -1422,6 +1542,49 @@ function initAddMemberPicker() {
   });
 }
 
+/* 送り・迎え・付き添いの担当ピッカー（役割ごとに複数人チェック可）。
+   「誰の予定？」とは違い排他選択ではないので、タップしたボタン自身の
+   .selだけをトグルする（他のボタンには触らない）。 */
+function renderEscortPicker(role, selectedKeys) {
+  var sel = selectedKeys || [];
+  var all = memberList();
+  var html = '';
+  for (var i = 0; i < all.length; i++) {
+    var m = all[i];
+    html += '<button type="button" class="am-pick' + (sel.indexOf(m.key) >= 0 ? ' sel' : '') +
+            '" data-key="' + m.key + '" style="--c:' + m.color + '">' + esc(m.label) + '</button>';
+  }
+  $('ae-escort-' + role).innerHTML = html;
+}
+function renderEscortPickers(escort) {
+  var e = escort || emptyEscort();
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    renderEscortPicker(ESCORT_ROLES[i], e[ESCORT_ROLES[i]]);
+  }
+}
+function initEscortPickers() {
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    (function (role) {
+      $('ae-escort-' + role).addEventListener('click', function (ev) {
+        var btn = ev.target.closest('.am-pick');
+        if (!btn) return;
+        btn.classList.toggle('sel');
+      });
+    })(ESCORT_ROLES[i]);
+  }
+}
+function readEscortSelections() {
+  var out = emptyEscort();
+  for (var i = 0; i < ESCORT_ROLES.length; i++) {
+    var role = ESCORT_ROLES[i];
+    var picks = $('ae-escort-' + role).querySelectorAll('.am-pick.sel');
+    var keys = [];
+    for (var j = 0; j < picks.length; j++) keys.push(picks[j].getAttribute('data-key'));
+    out[role] = keys;
+  }
+  return out;
+}
+
 /* 編集中の予定。null なら新規追加、値があれば「その予定を編集中」。 */
 STATE.editingEvent = null;
 
@@ -1460,6 +1623,7 @@ function openAddEvent() {
   $('ae-start').value = '09:00';
   $('ae-end').value = '10:00';
   renderAddMemberPicker(null);
+  renderEscortPickers(null);
   $('modal-add').hidden = false;
 }
 
@@ -1475,13 +1639,14 @@ function openEditEvent(ev) {
   $('ae-msg').textContent = ev.recurring ? '繰り返し予定はボードから変更できません。Googleカレンダーで直してください' : '';
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
-  $('ae-memo').value = ev.description || '';
+  $('ae-memo').value = ev.memo || '';
   $('ae-allday').checked = ev.allDay;
   $('ae-time-row').hidden = ev.allDay;
   $('ae-date').value = ymd(ev.start);
   $('ae-start').value = ev.allDay ? '09:00' : hhmm(ev.start);
   $('ae-end').value = ev.allDay ? '10:00' : hhmm(ev.end);
   renderAddMemberPicker(ev.member);
+  renderEscortPickers(ev.escort);
   $('modal-add').hidden = false;
 }
 
@@ -1503,7 +1668,8 @@ function readAddEventForm() {
     start: $('ae-start').value,
     end: $('ae-end').value,
     location: $('ae-location').value.trim(),
-    memo: $('ae-memo').value.trim()
+    memo: $('ae-memo').value.trim(),
+    escort: readEscortSelections()
   };
 }
 
@@ -1525,7 +1691,7 @@ function submitAddEvent() {
   var payload = {
     member: f.member, title: f.title, allDay: f.allDay,
     date: f.date, startTime: f.start, endTime: f.end,
-    location: f.location, description: f.memo
+    location: f.location, description: buildDescriptionWithEscort(f.memo, f.escort)
   };
   var isUpdate = !!STATE.editingEvent;
   if (isUpdate) {
@@ -1764,6 +1930,7 @@ function init() {
   $('ae-save').addEventListener('click', submitAddEvent);
   $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
+  initEscortPickers();
   initAgendaTap();
   initMonthDetailTap();
   $('ae-allday').addEventListener('change', function () {
