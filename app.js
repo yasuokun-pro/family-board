@@ -18,6 +18,101 @@ var MEMBERS = [
 var SHARED = { key: 'shared', label: 'みんな', color: '#B98BFF' };
 
 /* ------------------------------------------------------------------
+   1.5 学校の時程（村山学園 小学部 1～6年）
+   長男(son1)が2年生なのでこの時程を使う。出典:
+   村山学園「生活時程」https://www.city.musashimurayama.lg.jp/school/mmmurayama4sc/2000393.html
+   （中学部は分単位が違うので、このアプリでは対象外＝小学部のみ実装）。
+   夏休み・冬休み・学級閉鎖などの臨時休業は判定できないので、
+   「平日かつ祝日でない日は授業がある」という前提で計算する。 */
+var SCHOOL_MEMBER_KEY = 'son1';
+var SCHOOL_SCHEDULE = [
+  { name: '朝学習', start: '08:15', end: '08:30' },
+  { name: '学活',   start: '08:30', end: '08:40' },
+  { name: '1校時', start: '08:45', end: '09:30' },
+  { name: '2校時', start: '09:35', end: '10:20' },
+  { name: '中休み', start: '10:20', end: '10:40' },
+  { name: '3校時', start: '10:40', end: '11:25' },
+  { name: '4校時', start: '11:30', end: '12:15' },
+  { name: '給食',   start: '12:15', end: '12:55' },
+  { name: '清掃',   start: '12:55', end: '13:10' },
+  { name: '昼休み', start: '13:10', end: '13:20' },
+  { name: '5校時', start: '13:25', end: '14:10' },
+  { name: '6校時', start: '14:15', end: '15:00' },
+  { name: '終学活', start: '15:00', end: '15:15' }
+];
+
+function schoolMin(hhmm) {
+  var p = hhmm.split(':');
+  return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+}
+
+/* 指定した日が授業日か（平日かつ祝日ではない、という簡易判定） */
+function isSchoolDay(day) {
+  var w = day.getDay();
+  if (w === 0 || w === 6) return false;
+  if (STATE.holidays[ymd(day)]) return false;
+  return true;
+}
+
+/* 「いま」が村山学園の時程のどこに当たるかを返す（授業日でなければnull） */
+function currentSchoolPeriod() {
+  var now = new Date();
+  if (!isSchoolDay(now)) return null;
+  var mins = now.getHours() * 60 + now.getMinutes();
+  for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
+    var p = SCHOOL_SCHEDULE[i];
+    if (mins >= schoolMin(p.start) && mins < schoolMin(p.end)) return p;
+  }
+  return null;
+}
+
+/* 長男のレーン見出し（ボード／アジェンダ両方）に「いま何時限目か」を反映する。
+   見出し自体はrenderBoard/renderAgendaが再構築するたび作り直されるが、
+   このバッジだけは同じidを使い回し、tickClock()から毎秒直接書き換える。 */
+function paintSchoolBadge(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var p = currentSchoolPeriod();
+  if (p) {
+    el.hidden = false;
+    el.textContent = '🏫 ' + p.name + '中';
+  } else {
+    el.hidden = true;
+    el.textContent = '';
+  }
+}
+function updateSchoolBadges() {
+  paintSchoolBadge('lh-school');
+  paintSchoolBadge('ag-school');
+}
+
+/* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
+   HTML（.laneの中に、予定より下に敷く背景帯として挿入する）。 */
+function schoolBandsHtml(day, sh, eh) {
+  if (!isSchoolDay(day)) return '';
+  var spanMin = (eh - sh) * 60;
+  var now = new Date();
+  var isViewingToday = ymd(day) === ymd(now);
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  var html = '';
+  for (var i = 0; i < SCHOOL_SCHEDULE.length; i++) {
+    var p = SCHOOL_SCHEDULE[i];
+    var s = schoolMin(p.start), e = schoolMin(p.end);
+    var sMin = s - sh * 60, eMin = e - sh * 60;
+    if (eMin <= 0 || sMin >= spanMin) continue;   // 表示時間帯の外
+    sMin = Math.max(0, sMin);
+    eMin = Math.min(spanMin, eMin);
+    var top = (sMin / spanMin) * 100;
+    var hgt = ((eMin - sMin) / spanMin) * 100;
+    var isNow = isViewingToday && nowMin >= s && nowMin < e;
+    html += '<div class="school-band' + (isNow ? ' now' : '') + '" style="top:' + top + '%;height:' + hgt + '%">' +
+              '<span class="school-band-label">' + esc(p.name) + '</span>' +
+            '</div>';
+  }
+  return html;
+}
+
+/* ------------------------------------------------------------------
    2. 設定（localStorage）
    ------------------------------------------------------------------ */
 var DEFAULTS = {
@@ -272,6 +367,7 @@ function tickClock() {
   }
 
   updateNowLine();
+  updateSchoolBadges();
 }
 
 /* ------------------------------------------------------------------
@@ -614,7 +710,9 @@ function renderBoard() {
   for (var i = 0; i < lanes.length; i++) {
     var mem = lanes[i];
     var cnt = dayEvents.filter(function (e) { return e.member === mem.key; }).length;
+    var schoolBadge = (mem.key === SCHOOL_MEMBER_KEY) ? '<span class="lh-school" id="lh-school" hidden></span>' : '';
     headHtml += '<div class="lh" style="--c:' + mem.color + '">' + esc(mem.label) +
+                schoolBadge +
                 '<span class="lh-n">' + (cnt ? cnt + ' 件' : '—') + '</span></div>';
   }
   $('lanes-head').innerHTML = headHtml;
@@ -651,7 +749,7 @@ function renderBoard() {
   for (var L = 0; L < lanes.length; L++) {
     var mem2 = lanes[L];
     var mine = packLane(dayEvents.filter(function (e) { return !e.allDay && e.member === mem2.key; }));
-    var body = '';
+    var body = (mem2.key === SCHOOL_MEMBER_KEY) ? schoolBandsHtml(day, sh, eh) : '';
 
     for (var k = 0; k < mine.length; k++) {
       var ev = mine[k];
@@ -688,6 +786,7 @@ function renderBoard() {
 
   sizeHours();
   updateNowLine();
+  updateSchoolBadges();
 }
 
 /* 色を暗い背景に混ぜた値を返す（color-mix 非対応の Safari 用） */
@@ -919,20 +1018,20 @@ function renderAgenda() {
   var hol = STATE.holidays[ymd(day)];
   $('board-sub').textContent = hol ? hol : (dayEvents.length + ' 件');
 
-  if (dayEvents.length === 0) {
-    $('agenda').innerHTML = '<div class="ag-empty">予定はありません</div>';
-    return;
-  }
-
   var order = memberList().concat([SHARED]);
   var html = '';
   for (var m = 0; m < order.length; m++) {
     var mem = order[m];
     var mine = dayEvents.filter(function (e) { return e.member === mem.key; });
-    if (mine.length === 0) continue;
+    /* 長男(SCHOOL_MEMBER_KEY)は、その日に予定が1件もなくても
+       学校の時程バッジを出したいので、授業日ならグループ自体は残す。 */
+    var isSchoolLane = mem.key === SCHOOL_MEMBER_KEY && isSchoolDay(day);
+    if (mine.length === 0 && !isSchoolLane) continue;
 
+    var schoolBadge = isSchoolLane ? '<span class="ag-school" id="ag-school" hidden></span>' : '';
     html += '<div class="ag-group" style="--c:' + mem.color + '">' +
-              '<div class="ag-head"><b>' + esc(mem.label) + '</b><span>' + mine.length + '件</span></div>';
+              '<div class="ag-head"><b>' + esc(mem.label) + '</b>' + schoolBadge +
+              (mine.length ? '<span>' + mine.length + '件</span>' : '') + '</div>';
 
     for (var i = 0; i < mine.length; i++) {
       var ev = mine[i];
@@ -948,7 +1047,8 @@ function renderAgenda() {
     }
     html += '</div>';
   }
-  $('agenda').innerHTML = html;
+  $('agenda').innerHTML = html || '<div class="ag-empty">予定はありません</div>';
+  updateSchoolBadges();
 }
 
 function eventById(id) {

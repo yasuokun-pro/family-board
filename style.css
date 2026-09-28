@@ -416,6 +416,16 @@ body.kiosk-mode.controls-visible .board-tools {
   margin-top: 0.1vh;
 }
 
+/* 長男レーンの「いま何時限目か」バッジ（村山学園の時程） */
+.lh .lh-school {
+  display: block;
+  font-size: 1.5vh;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 0.1vh;
+}
+.lh .lh-school[hidden] { display: none; }
+
 /* --- 終日予定バンド --- */
 .allday {
   flex: 0 0 auto;
@@ -525,6 +535,33 @@ body.kiosk-mode.controls-visible .board-tools {
 .ev.live {
   box-shadow: 0 0 0 0.25vh var(--c), 0 0.5vh 1.5vh rgba(0,0,0,0.5);
   background: var(--c-bg2);
+}
+
+/* 長男レーンに敷く「ここからここが何時限目」の帯（村山学園の時程）。
+   予定(.ev)より先にDOMへ入れているので、実際の予定はこの上に重なって表示される。 */
+.school-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--panel-2);
+  border-top: 1px solid var(--line-soft);
+  box-sizing: border-box;
+}
+.school-band.now {
+  background: rgba(79, 163, 255, 0.16);
+  border-top: 1px solid rgba(79, 163, 255, 0.5);
+}
+.school-band-label {
+  position: absolute;
+  left: 0.5vh;
+  top: 0.1vh;
+  font-size: 1.4vh;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.school-band.now .school-band-label {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .empty-lane {
@@ -988,6 +1025,12 @@ body.kiosk-mode.controls-visible .board-tools {
   font-size: 0.8rem;
   color: var(--dim);
 }
+.ag-head .ag-school {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.ag-head .ag-school[hidden] { display: none; }
 
 .ag-ev {
   display: flex;
