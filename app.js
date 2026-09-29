@@ -351,10 +351,13 @@ var ESCORT_ROLES = ['dropoff', 'pickup', 'accompany'];
 var ESCORT_LABELS = { dropoff: '送り', pickup: '迎え', accompany: '付き添い' };
 var ESCORT_ICONS  = { dropoff: '🚗', pickup: '🚗', accompany: '🧑‍🤝‍🧑' };
 var ESCORT_MARK = '――― 送迎 ―――';
+/* 付き添い/付添いのように「き」の送り仮名の有無どちらで手入力されても
+   拾えるよう、そこだけ任意にしている（読み取り専用。アプリ自身が書き込む
+   ときのラベルは常にESCORT_LABELS.accompanyの「付き添い」で統一）。 */
 var ESCORT_LINE_RE = {
   dropoff:   /送り[:：]\s*([^\n]*)/,
   pickup:    /迎え[:：]\s*([^\n]*)/,
-  accompany: /付き添い[:：]\s*([^\n]*)/
+  accompany: /付(?:き)?添い[:：]\s*([^\n]*)/
 };
 
 function emptyEscort() { return { dropoff: [], pickup: [], accompany: [] }; }
