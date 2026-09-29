@@ -990,6 +990,31 @@ https://www.city.musashimurayama.lg.jp/school/mmmurayama4sc/2000393.html
 全時間帯ブロックのままであることを、実際のDOM(位置・線種・表示テキスト)で確認。
 縦向き(アジェンダ)でも送り・迎えが単一時刻、付き添いが範囲表示になることを確認。
 
+## ボードで名前をタップすると、その人の予定一覧を表示（2026-09-29、v41）
+
+**要望:** ボードの欄で名前をタップしたら、その人の予定が一覧で閲覧できるようにしたい。
+
+**実装（app.js/style.css/index.html）:** 時限表パネル(`#school-flyout`)と同じ「背景を
+敷かない浮かせ表示」の仕組みを流用し、`#member-flyout`を追加。
+- `renderBoard()`のレーン見出し(`.lh`)に`data-member="<key>"`を付与。
+- `$('lanes-head')`の委譲クリックで、`.lh-school`（既存の🏫バッジ）以外の場所が
+  タップされたら`openMemberSchedule(memberKey, anchorRect)`を呼ぶ
+  （タップした見出し自身の位置を`anchorRect`にする）。
+- `openMemberSchedule()`は`eventsForLaneWithEscort(STATE.events, memberKey)`
+  （送り・迎え・付き添いで担当している他の人の予定も、そのレーンに出ているのと
+  同じ形で含む）から`e.end > now`のものだけ抽出・日付順に並べ、日付＋時刻＋
+  タイトル＋場所の一覧を表示。行をタップすると一覧を閉じて`openEditEvent()`
+  （既存の予定編集パネル）を開く。
+- 位置決めは`positionSchoolFlyout()`を`positionFlyout(flyout, anchorRect)`に
+  一般化し、`#school-flyout`・`#member-flyout`の両方から使う共通処理にした。
+  外側タップで閉じる処理・「2枚同時に開かない」処理も両パネル分に拡張。
+- 「みんな」レーンの名前タップにも同じ仕組みが働く（`memberByKey('shared')`）。
+
+**確認:** 長男・みんな双方でレーン見出しタップ→一覧表示→行タップ→編集パネルが
+正しい予定で開くこと、🏫バッジタップとの競合がないこと（同じ`.lh`内でも
+バッジがヒットすれば時限表、それ以外なら予定一覧）、外側タップで閉じることを
+実際のクリックイベント発火で確認。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）

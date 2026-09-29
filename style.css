@@ -407,6 +407,7 @@ body.kiosk-mode.controls-visible .board-tools {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 .lh .lh-n {
   display: block;
@@ -1088,6 +1089,69 @@ body.kiosk-mode.controls-visible .board-tools {
   touch-action: manipulation;
 }
 .school-flyout-close:active { background: var(--line-soft); color: var(--text); }
+
+/* --- その人の予定一覧パネル ---
+   ボードのレーン見出し（名前）をタップして開く。時限表パネルと同じく
+   背景を敷かない浮かせ表示だが、日付をまたいだ一覧になるので少し幅広め。 */
+.member-flyout {
+  position: fixed;
+  z-index: 90;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.2vh;
+  padding: 1.4vh 1.6vh;
+  max-width: min(34vh, 90vw);
+  max-height: 80vh;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 0.8vh 3vh rgba(0, 0, 0, 0.55);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.member-flyout[hidden] { display: none !important; }
+.member-flyout-list { display: flex; flex-direction: column; }
+.mf-ev {
+  display: flex;
+  gap: 0.8vh;
+  padding: 0.9vh 0.2vh;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+}
+.mf-ev:last-child { border-bottom: none; }
+.mf-ev:active { background: var(--panel-2); }
+.mf-date {
+  flex: 0 0 auto;
+  width: 6.2em;
+  font-size: 1.3vh;
+  color: var(--muted);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.mf-date b {
+  display: block;
+  color: var(--text);
+  font-size: 1.5vh;
+  font-weight: 600;
+}
+.mf-body { flex: 1 1 auto; min-width: 0; }
+.mf-title {
+  font-size: 1.6vh;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.mf-loc {
+  font-size: 1.3vh;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-empty {
+  color: var(--dim);
+  font-size: 1.5vh;
+  padding: 1vh 0.2vh;
+}
 
 .school-table {
   width: 100%;

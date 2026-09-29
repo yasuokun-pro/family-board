@@ -197,10 +197,10 @@ function repaintSchoolTableNow() {
   }
 }
 
-/* anchorRect(タップした要素のgetBoundingClientRect())の右隣にパネルを置く。
-   右にはみ出す場合は左隣に、下にはみ出す場合は画面内に収まる位置まで引き上げる。 */
-function positionSchoolFlyout(anchorRect) {
-  var flyout = $('school-flyout');
+/* anchorRect(タップした要素のgetBoundingClientRect())の右隣にflyout要素を置く。
+   右にはみ出す場合は左隣に、下にはみ出す場合は画面内に収まる位置まで引き上げる。
+   時限表(#school-flyout)・その人の予定一覧(#member-flyout)の両方で使う共通処理。 */
+function positionFlyout(flyout, anchorRect) {
   var margin = 8;
   var fw = flyout.offsetWidth;
   var fh = flyout.offsetHeight;
@@ -217,6 +217,7 @@ function positionSchoolFlyout(anchorRect) {
   flyout.style.left = left + 'px';
   flyout.style.top = top + 'px';
 }
+function positionSchoolFlyout(anchorRect) { positionFlyout($('school-flyout'), anchorRect); }
 
 /* 長男のレーン全体（時限の帯を含む列）の位置。ボード側でバッジ・帯どちらを
    タップしても、同じ位置（長男のレーンの右隣）にパネルを出すために使う。 */
@@ -224,6 +225,58 @@ function schoolLaneRect() {
   var col = document.querySelector('.school-col');
   var lane = col && col.closest('.lane');
   return lane ? lane.getBoundingClientRect() : null;
+}
+
+/* ボードのレーン見出し（名前）をタップしたときに、その人の今後の予定を
+   一覧で見せるパネル。#school-flyoutと同じ「背景なしの浮かせ表示」で、
+   タップした見出しのすぐ横に出す。送り・迎え・付き添いで担当している
+   他の人の予定も、そのレーンに出ているのと同じ形で混ぜて見せる。 */
+function openMemberSchedule(memberKey, anchorRect) {
+  var mem = memberByKey(memberKey);
+  var now = new Date();
+  var upcoming = eventsForLaneWithEscort(STATE.events, memberKey)
+    .filter(function (e) { return e.end > now; })
+    .sort(function (a, b) { return a.start - b.start; });
+
+  var titleEl = $('member-flyout-title');
+  titleEl.textContent = mem.label + 'の予定';
+  titleEl.style.color = mem.color;
+
+  var html = '';
+  if (upcoming.length === 0) {
+    html = '<div class="mf-empty">今後の予定はありません</div>';
+  } else {
+    for (var i = 0; i < upcoming.length; i++) {
+      var ev = upcoming[i];
+      var dateLabel = (ev.start.getMonth() + 1) + '/' + ev.start.getDate() + '（' + DOW[ev.start.getDay()] + '）';
+      var timeLabel = ev.allDay ? '終日' : boardTimeLabel(ev);
+      html += '<div class="mf-ev" data-id="' + esc(ev.id) + '">' +
+                '<div class="mf-date"><b>' + dateLabel + '</b>' + esc(timeLabel) + '</div>' +
+                '<div class="mf-body">' +
+                  '<div class="mf-title">' + esc(eventDisplayTitle(ev)) + '</div>' +
+                  (ev.location ? '<div class="mf-loc">' + esc(ev.location) + '</div>' : '') +
+                '</div>' +
+              '</div>';
+    }
+  }
+  $('member-flyout-list').innerHTML = html;
+
+  closeSchoolTable();   // 2枚同時に出さない
+  var flyout = $('member-flyout');
+  flyout.hidden = false;
+  if (anchorRect) positionFlyout(flyout, anchorRect);
+}
+function closeMemberSchedule() {
+  $('member-flyout').hidden = true;
+}
+function initMemberScheduleTap() {
+  $('member-flyout-list').addEventListener('click', function (ev) {
+    var row = ev.target.closest('.mf-ev');
+    if (!row) return;
+    var found = eventById(row.getAttribute('data-id'));
+    if (found) { closeMemberSchedule(); openEditEvent(found); }
+  });
+  $('member-flyout-close').addEventListener('click', closeMemberSchedule);
 }
 
 /* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
@@ -1036,7 +1089,7 @@ function renderBoard() {
     var mem = lanes[i];
     var cnt = eventsForLaneWithEscort(dayEvents, mem.key).length;
     var schoolBadge = (mem.key === SCHOOL_MEMBER_KEY) ? '<span class="lh-school" id="lh-school" hidden></span>' : '';
-    headHtml += '<div class="lh" style="--c:' + mem.color + '">' + esc(mem.label) +
+    headHtml += '<div class="lh" data-member="' + mem.key + '" style="--c:' + mem.color + '">' + esc(mem.label) +
                 schoolBadge +
                 '<span class="lh-n">' + (cnt ? cnt + ' 件' : '—') + '</span></div>';
   }
@@ -1982,7 +2035,13 @@ function init() {
   // ev.stopPropagation()で止めておかないと、同じクリックがdocumentまで
   // 伝わって「外側タップで閉じる」の判定に引っかかり、開いた瞬間に閉じてしまう。
   $('lanes-head').addEventListener('click', function (ev) {
-    if (ev.target.closest('.lh-school')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); }
+    if (ev.target.closest('.lh-school')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); return; }
+    // 見出し（名前）をタップしたら、その人の今後の予定一覧を出す
+    var lane = ev.target.closest('.lh');
+    if (lane && lane.getAttribute('data-member')) {
+      ev.stopPropagation();
+      openMemberSchedule(lane.getAttribute('data-member'), lane.getBoundingClientRect());
+    }
   });
   $('lanes').addEventListener('click', function (ev) {
     if (ev.target.closest('.school-col')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); }
@@ -1992,10 +2051,13 @@ function init() {
     if (badge) { ev.stopPropagation(); openSchoolTable(badge.getBoundingClientRect()); }
   });
   $('school-close').addEventListener('click', closeSchoolTable);
+  initMemberScheduleTap();
   // パネルの外側をタップしたら閉じる（設定等の.modalと違い背景を敷いていないため）
   document.addEventListener('click', function (ev) {
     var flyout = $('school-flyout');
     if (!flyout.hidden && !flyout.contains(ev.target)) closeSchoolTable();
+    var mflyout = $('member-flyout');
+    if (!mflyout.hidden && !mflyout.contains(ev.target)) closeMemberSchedule();
   });
 
   // 左右スワイプで日付移動

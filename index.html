@@ -253,6 +253,16 @@
   <p class="hint">村山学園（1〜6年）の時程。下校時刻がこれより早い日は、それより後の時限はボードに表示されません。</p>
 </div>
 
+<!-- ============ その人の予定一覧パネル（ボードのレーン見出し＝名前タップで開く）
+     ※ school-flyoutと同じ、背景を敷かない浮かせ表示。 ============ -->
+<div class="member-flyout" id="member-flyout" hidden>
+  <div class="school-flyout-head">
+    <h2 id="member-flyout-title">予定</h2>
+    <button class="school-flyout-close" id="member-flyout-close" title="閉じる">×</button>
+  </div>
+  <div class="member-flyout-list" id="member-flyout-list"></div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
