@@ -1260,9 +1260,33 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .ag-ev:last-child { border-bottom: none; }
 .ag-ev.past { opacity: 0.45; }
+.ag-ev { cursor: pointer; }
+.ag-ev.open { background: var(--panel-2); }
 /* 送り・迎え・付き添いの担当ぶん（自分の予定ではない）は少し控えめに */
 .ag-ev.escort { opacity: 0.8; }
 .ag-ev.escort .ag-title { font-style: italic; }
+
+/* タップした予定の下に広げる詳細。左側は.ag-time(3.6rem)+gap(0.7rem)ぶん
+   空けて、.ag-bodyの文字位置と縦に揃える。編集は必ずここの
+   ボタンから(直接タップでは編集画面に入らない)。 */
+.ag-detail {
+  padding: 0.7rem 0.6rem 0.9rem 4.3rem;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.ag-detail-row { margin-bottom: 0.5rem; }
+.ag-detail-row:last-of-type { margin-bottom: 0.8rem; }
+.ag-detail-row b {
+  display: inline-block;
+  width: 3em;
+  color: var(--text);
+  font-weight: 600;
+}
+.ag-detail-role { color: var(--text); font-weight: 600; }
+.ag-detail-memo { line-height: 1.5; }
+.ag-detail-edit { display: block; width: 100%; }
 
 .ag-time {
   flex: 0 0 auto;

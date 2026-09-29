@@ -1444,7 +1444,8 @@ function renderAgenda() {
       var ev = mine[i];
       var isPast = !ev.allDay && ev.end < now && ymd(day) === ymd(now);
       var isEscort = !!ev._escortRole;
-      html += '<div class="ag-ev' + (isPast ? ' past' : '') + (isEscort ? ' escort' : '') + '" data-id="' + esc(ev.id) + '">' +
+      html += '<div class="ag-ev' + (isPast ? ' past' : '') + (isEscort ? ' escort' : '') + '" data-id="' + esc(ev.id) + '"' +
+              (isEscort ? ' data-escort-role="' + esc(ev._escortRole) + '"' : '') + '>' +
                 '<div class="ag-time">' + agendaTimeHtml(ev) + '</div>' +
                 '<div class="ag-body">' +
                   '<div class="ag-title">' + esc(eventDisplayTitle(ev)) + '</div>' +
@@ -1465,15 +1466,79 @@ function eventById(id) {
   return null;
 }
 
-/* アジェンダの予定タップで編集を開く。ここも予定追加のメンバーピルと
-   同じ理由(委譲の方が個別リスナーより取りこぼしに強い)で委譲方式にする。 */
+/* アジェンダ(縦向き)の予定タップ。以前は直接編集パネルを開いていたが、
+   誤って編集画面に入ってしまうという声があったため、まずタップした予定の
+   すぐ下に詳細を広げるだけにし、実際の編集はそこにある「編集する」
+   ボタンから行うようにした。委譲方式なのはメンバーピルと同じ理由
+   (取りこぼしに強い)。 */
 function initAgendaTap() {
   $('agenda').addEventListener('click', function (ev) {
+    var editBtn = ev.target.closest('.ag-detail-edit');
+    if (editBtn) {
+      var found = eventById(editBtn.getAttribute('data-id'));
+      if (found) openEditEvent(found);
+      return;
+    }
     var row = ev.target.closest('.ag-ev');
     if (!row) return;
-    var found = eventById(row.getAttribute('data-id'));
-    if (found) openEditEvent(found);
+    toggleAgendaDetail(row);
   });
+}
+
+/* タップした予定の詳細を、その予定の下に広げる/閉じる。
+   同じ予定を再タップすると閉じるだけ。別の予定をタップすると、
+   開いていた詳細を閉じてから新しい詳細を開く(同時に1つだけ)。 */
+function toggleAgendaDetail(row) {
+  var id = row.getAttribute('data-id');
+  var already = row.nextElementSibling;
+  var wasOpen = !!(already && already.classList.contains('ag-detail') && already.getAttribute('data-for') === id);
+
+  var openDetail = $('agenda').querySelector('.ag-detail');
+  if (openDetail) {
+    var openRow = openDetail.previousElementSibling;
+    if (openRow) openRow.classList.remove('open');
+    openDetail.remove();
+  }
+  if (wasOpen) return;
+
+  var found = eventById(id);
+  if (!found) return;
+  var detail = document.createElement('div');
+  detail.className = 'ag-detail';
+  detail.setAttribute('data-for', id);
+  detail.innerHTML = renderAgendaDetail(found, row.getAttribute('data-escort-role') || '');
+  row.insertAdjacentElement('afterend', detail);
+  row.classList.add('open');
+}
+
+/* 予定の詳細のHTML。escortRoleがあれば(送迎の担当として出ている行なら)
+   「誰の予定の何担当か」を先頭に添える。編集は必ずこの中のボタンから。 */
+function renderAgendaDetail(ev, escortRole) {
+  var html = '';
+  if (escortRole) {
+    var owner = memberByKey(ev.member).label;
+    html += '<div class="ag-detail-row ag-detail-role">' + ESCORT_ICONS[escortRole] + ' ' +
+            esc(owner) + 'の予定の' + esc(ESCORT_LABELS[escortRole]) + '担当です</div>';
+  }
+  var timeText = ev.allDay ? '終日' : (hhmm(ev.start) + ' 〜 ' + hhmm(ev.end));
+  html += '<div class="ag-detail-row"><b>時間</b>' + esc(timeText) + '</div>';
+  if (ev.location) html += '<div class="ag-detail-row"><b>場所</b>' + esc(ev.location) + '</div>';
+  if (ev.memo) html += '<div class="ag-detail-row ag-detail-memo"><b>メモ</b>' + esc(ev.memo).replace(/\n/g, '<br>') + '</div>';
+
+  if (ev.escort) {
+    var parts = [];
+    for (var i = 0; i < ESCORT_ROLES.length; i++) {
+      var r = ESCORT_ROLES[i];
+      if (ev.escort[r] && ev.escort[r].length) {
+        var names = ev.escort[r].map(function (k) { return memberByKey(k).label; }).join('・');
+        parts.push(ESCORT_ICONS[r] + ESCORT_LABELS[r] + ':' + names);
+      }
+    }
+    if (parts.length) html += '<div class="ag-detail-row">' + esc(parts.join('　')) + '</div>';
+  }
+
+  html += '<button type="button" class="btn ag-detail-edit" data-id="' + esc(ev.id) + '">編集する</button>';
+  return html;
 }
 
 /* 月表示の詳細パネルの予定をタップしても編集を開けるようにする。
