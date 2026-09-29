@@ -1,6 +1,6 @@
 /* 家族ボード Service Worker
    ※ ファイルを更新したら必ず VER を上げること（キャッシュが切り替わらないため） */
-const VER = 'v43';
+const VER = 'v44';
 const PREFIX = 'family-board-';
 const CACHE = PREFIX + VER;
 

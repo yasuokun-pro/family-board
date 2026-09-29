@@ -175,6 +175,8 @@ function openSchoolTable(anchorRect) {
     rows += '<tr' + (i === nowIdx ? ' class="now"' : '') + '><th>' + esc(p.name) + '</th><td>' + p.start + '〜' + p.end + '</td></tr>';
   }
   $('school-table').innerHTML = rows;
+  closeMemberSchedule();
+  closeEventDetail();
   var flyout = $('school-flyout');
   flyout.hidden = false;
   if (anchorRect) positionSchoolFlyout(anchorRect);
@@ -262,6 +264,7 @@ function openMemberSchedule(memberKey, anchorRect) {
   $('member-flyout-list').innerHTML = html;
 
   closeSchoolTable();   // 2枚同時に出さない
+  closeEventDetail();
   var flyout = $('member-flyout');
   flyout.hidden = false;
   if (anchorRect) positionFlyout(flyout, anchorRect);
@@ -277,6 +280,36 @@ function initMemberScheduleTap() {
     if (found) { closeMemberSchedule(); openEditEvent(found); }
   });
   $('member-flyout-close').addEventListener('click', closeMemberSchedule);
+}
+
+/* ボードで予定そのものをタップしたときの詳細パネル。縦向き(アジェンダ)の
+   「タップ→詳細→編集ボタン」と同じ2段階にするため、renderAgendaDetail()を
+   そのまま使い回す。ボードはタイムライン上に絶対配置なので、詳細を
+   予定の「下」に置く場所が無く、他のflyout群と同じ「タップした場所の
+   横に浮かせる」方式にしている。 */
+function openEventDetail(ev, escortRole, titleText, anchorRect) {
+  var titleEl = $('event-flyout-title');
+  titleEl.textContent = titleText;
+  titleEl.style.color = memberByKey(ev.member).color;
+  $('event-flyout-body').innerHTML = renderAgendaDetail(ev, escortRole);
+
+  closeSchoolTable();
+  closeMemberSchedule();
+  var flyout = $('event-flyout');
+  flyout.hidden = false;
+  if (anchorRect) positionFlyout(flyout, anchorRect);
+}
+function closeEventDetail() {
+  $('event-flyout').hidden = true;
+}
+function initEventDetailTap() {
+  $('event-flyout-body').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.ag-detail-edit');
+    if (!btn) return;
+    var found = eventById(btn.getAttribute('data-id'));
+    if (found) { closeEventDetail(); openEditEvent(found); }
+  });
+  $('event-flyout-close').addEventListener('click', closeEventDetail);
 }
 
 /* 表示ボードの長男レーンに「ここからここが何時限目」を帯で示すための
@@ -1175,7 +1208,8 @@ function renderBoard() {
       var evClass = 'ev' + (isPast ? ' past' : '') + (isLive ? ' live' : '') + (isShort ? ' short' : '') +
                     (isEscort ? ' escort' : '') + (isEscortBlock ? ' escort-block' : '') + (isEscortPoint ? ' escort-point' : '');
 
-      body += '<div class="' + evClass + '"' +
+      body += '<div class="' + evClass + '" data-id="' + esc(ev.id) + '"' +
+              (isEscort ? ' data-escort-role="' + esc(ev._escortRole) + '"' : '') +
               ' style="--c:' + evColor + ';--c-bg:' + mix(evColor, 0.22) + ';--c-bg2:' + mix(evColor, 0.34) + ';' +
               'top:' + top + '%;height:' + hgt + '%;' +
               'left:' + leftExpr + ';width:' + widthExpr + ';">' +
@@ -2112,7 +2146,18 @@ function init() {
     }
   });
   $('lanes').addEventListener('click', function (ev) {
-    if (ev.target.closest('.school-col')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); }
+    if (ev.target.closest('.school-col')) { ev.stopPropagation(); openSchoolTable(schoolLaneRect()); return; }
+    // 予定そのものをタップしたら、縦向きと同じ詳細パネルを出す（編集はその中のボタンから）
+    var row = ev.target.closest('.ev');
+    if (row) {
+      ev.stopPropagation();
+      var found = eventById(row.getAttribute('data-id'));
+      if (found) {
+        var titleEl = row.querySelector('.ev-n');
+        openEventDetail(found, row.getAttribute('data-escort-role') || '',
+          titleEl ? titleEl.textContent : found.title, row.getBoundingClientRect());
+      }
+    }
   });
   $('agenda').addEventListener('click', function (ev) {
     var badge = ev.target.closest('.ag-school');
@@ -2120,12 +2165,15 @@ function init() {
   });
   $('school-close').addEventListener('click', closeSchoolTable);
   initMemberScheduleTap();
+  initEventDetailTap();
   // パネルの外側をタップしたら閉じる（設定等の.modalと違い背景を敷いていないため）
   document.addEventListener('click', function (ev) {
     var flyout = $('school-flyout');
     if (!flyout.hidden && !flyout.contains(ev.target)) closeSchoolTable();
     var mflyout = $('member-flyout');
     if (!mflyout.hidden && !mflyout.contains(ev.target)) closeMemberSchedule();
+    var eflyout = $('event-flyout');
+    if (!eflyout.hidden && !eflyout.contains(ev.target)) closeEventDetail();
   });
 
   // 左右スワイプで日付移動

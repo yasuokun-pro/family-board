@@ -263,6 +263,16 @@
   <div class="member-flyout-list" id="member-flyout-list"></div>
 </div>
 
+<!-- ============ ボードの予定タップ用：詳細パネル（縦画面のアジェンダと同じ内容）
+     ※ 同じくbackground無しの浮かせ表示。中の「編集する」ボタンからのみ編集を開く。 ============ -->
+<div class="member-flyout" id="event-flyout" hidden>
+  <div class="school-flyout-head">
+    <h2 id="event-flyout-title">予定</h2>
+    <button class="school-flyout-close" id="event-flyout-close" title="閉じる">×</button>
+  </div>
+  <div id="event-flyout-body"></div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
