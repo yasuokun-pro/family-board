@@ -2199,8 +2199,23 @@ function init() {
 
   keepAwake();
 
+  /* 壁掛けボードのように何日も再読み込みされない画面は、新しいバージョンを
+     デプロイしても、ブラウザが自分でsw.jsの更新に気づくまで（最大でも
+     半日〜1日程度かかることがある）ずっと古いapp.jsのまま動き続けてしまう。
+     この「新機能が本番反映されたはずなのに壁掛け側だけ古い動きのまま」を
+     防ぐため、①一定間隔で明示的に更新チェックし、②新しいService Workerに
+     切り替わったら（＝新バージョンが降ってきたら）ページごと自動で
+     再読み込みする。hadControllerで「初回インストール時の切り替わり」を
+     除外し、以降の「本当の更新」のときだけリロードする。 */
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      setInterval(function () { reg.update().catch(function () {}); }, 30 * 60000);
+    }).catch(function () {});
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (hadController) { location.reload(); return; }
+      hadController = true;
+    });
   }
 }
 
