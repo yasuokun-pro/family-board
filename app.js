@@ -1778,6 +1778,23 @@ function readEscortSelections() {
   return out;
 }
 
+/* 所要時間ボタン（30分〜2時間）。押した瞬間の「開始」を基準に、その長さぶん
+   足した時刻を「終了」へ自動で入れる（開始・終了を別々に触らなくて済むように）。
+   日をまたぐ場合（23時台に2時間など）はこのフォームが1日の予定しか
+   作れないため、23:59に収める。 */
+function initDurationPicker() {
+  $('ae-duration-picks').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.am-pick');
+    if (!btn) return;
+    var startVal = $('ae-start').value;
+    if (!startVal) return;
+    var mins = parseInt(btn.getAttribute('data-min'), 10);
+    var p = startVal.split(':');
+    var total = Math.min(parseInt(p[0], 10) * 60 + parseInt(p[1], 10) + mins, 23 * 60 + 59);
+    $('ae-end').value = pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+  });
+}
+
 /* 編集中の予定。null なら新規追加、値があれば「その予定を編集中」。 */
 STATE.editingEvent = null;
 
@@ -1812,6 +1829,7 @@ function openAddEvent() {
   $('ae-memo').value = '';
   $('ae-allday').checked = false;
   $('ae-time-row').hidden = false;
+  $('ae-duration-fld').hidden = false;
   $('ae-date').value = ymd(STATE.viewDate);
   $('ae-start').value = '09:00';
   $('ae-end').value = '10:00';
@@ -1835,6 +1853,7 @@ function openEditEvent(ev) {
   $('ae-memo').value = ev.memo || '';
   $('ae-allday').checked = ev.allDay;
   $('ae-time-row').hidden = ev.allDay;
+  $('ae-duration-fld').hidden = ev.allDay;
   $('ae-date').value = ymd(ev.start);
   $('ae-start').value = ev.allDay ? '09:00' : hhmm(ev.start);
   $('ae-end').value = ev.allDay ? '10:00' : hhmm(ev.end);
@@ -2124,10 +2143,12 @@ function init() {
   $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
   initEscortPickers();
+  initDurationPicker();
   initAgendaTap();
   initMonthDetailTap();
   $('ae-allday').addEventListener('change', function () {
     $('ae-time-row').hidden = this.checked;
+    $('ae-duration-fld').hidden = this.checked;
   });
   $('modal-add').addEventListener('click', function (ev) {
     if (ev.target === $('modal-add')) closeAddEvent();
