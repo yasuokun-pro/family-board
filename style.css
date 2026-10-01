@@ -736,7 +736,7 @@ body.kiosk-mode.controls-visible .board-tools {
   color: var(--c);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;   /* 「…」は出さず、はみ出た分はそのまま切る */
 }
 .mc-more {
   font-size: 1.4vh;

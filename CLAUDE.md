@@ -1112,6 +1112,21 @@ https://www.city.musashimurayama.lg.jp/school/mmmurayama4sc/2000393.html
 壁掛けボード・各自のiPhoneとも、今回は一度手動で読み込み直す（Safariでリロード、
 またはホーム画面アプリを再起動）ことをお願いする必要がある。
 
+## 月間ビューの「…」を廃止（2026-10-01、v46）
+
+**要望:** 月間の予定で文字が入り切らなかったら「…」と出るのをやめてほしい。
+
+**実装（style.css）:** `.mc-ev`（月間グリッドの1マスに並ぶ予定の行）の
+`text-overflow: ellipsis`を`text-overflow: clip`に変更。`white-space: nowrap`・
+`overflow: hidden`はそのまま残しているので、1行固定・はみ出た分を隠す動作
+（月間セルの高さを`measureMonthCellHeight()`で実測して詰めている設計）自体は
+変わらず、はみ出た文字が「…」を付けずにそのまま切れるだけになる。
+月間詳細パネル(`.md-ev .md-title`)はもともと`overflow-wrap: break-word`で
+折り返し表示しており、ellipsisは使っていないため変更不要だった。
+
+**確認:** `.mc-ev`の実際の算出スタイルで`text-overflow`が`clip`になっている
+ことを確認。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）
