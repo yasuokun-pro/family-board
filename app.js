@@ -2249,7 +2249,14 @@ function init() {
     sx = e.touches[0].clientX; sy = e.touches[0].clientY;
   }, { passive: true });
   document.addEventListener('touchend', function (e) {
-    if (!$('modal').hidden) return;
+    /* 予定追加/編集パネルや各種flyout(時限表・予定一覧・予定詳細・時刻スライダー)
+       が開いているときに横ドラッグすると、下に隠れているボードの「左右スワイプで
+       日付移動」が一緒に反応してしまい、特に時刻スライダーが「選べない・
+       動かない」ように感じる原因になっていた。開いている間はこのスワイプを
+       無効にする。 */
+    if (!$('modal').hidden || !$('modal-add').hidden ||
+        !$('school-flyout').hidden || !$('member-flyout').hidden ||
+        !$('event-flyout').hidden || !$('time-flyout').hidden) return;
     var dx = e.changedTouches[0].clientX - sx;
     var dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
