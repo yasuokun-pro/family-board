@@ -879,6 +879,7 @@ body.kiosk-mode.controls-visible .board-tools {
 .fld-row .fld { flex: 1 1 0; }
 .fld-row .fld-row { flex: 2 1 0; }
 #ae-time-row[hidden] { display: none; }
+#ae-start, #ae-end { cursor: pointer; }
 
 .place-results {
   display: flex;
@@ -1110,6 +1111,57 @@ body.kiosk-mode.controls-visible .board-tools {
 }
 .member-flyout[hidden] { display: none !important; }
 .member-flyout-list { display: flex; flex-direction: column; }
+
+/* --- 予定追加/編集：時刻スライダーパネル ---
+   「開始」「終了」欄をタップして開く。スライダー2本（開始・終了）を
+   1つの画面にまとめて、所要時間ボタンもここに同居させる。 */
+.time-flyout-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 1vh;
+}
+.time-flyout-row:first-of-type { margin-top: 0; }
+.time-flyout-label { font-size: 13px; color: var(--muted); }
+.time-flyout-value {
+  font-size: 2.4vh;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.time-flyout-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  margin: 0.6vh 0;
+  border-radius: 3px;
+  background: var(--line-soft);
+  outline: none;
+}
+.time-flyout-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2E7DE0;
+  border: 2px solid #0B0F14;
+  cursor: pointer;
+}
+.time-flyout-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2E7DE0;
+  border: 2px solid #0B0F14;
+  cursor: pointer;
+}
+.time-flyout-duration { margin: 1.4vh 0 0; }
+.time-flyout-done { display: block; width: 100%; margin-top: 1.2vh; }
+/* 予定追加/編集の.modal(z-index:100)の上に出す必要があるので、
+   他のflyout(z-index:90、ボードの上に出すだけのもの)より高くする。 */
+#time-flyout { z-index: 110; }
 .mf-ev {
   display: flex;
   gap: 0.8vh;

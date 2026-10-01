@@ -127,22 +127,12 @@
       <div class="fld-row" id="ae-time-row">
         <label class="fld">
           <span>開始</span>
-          <input type="time" id="ae-start" value="09:00">
+          <input type="text" id="ae-start" value="09:00" readonly inputmode="none" autocomplete="off">
         </label>
         <label class="fld">
           <span>終了</span>
-          <input type="time" id="ae-end" value="10:00">
+          <input type="text" id="ae-end" value="10:00" readonly inputmode="none" autocomplete="off">
         </label>
-      </div>
-    </div>
-
-    <div class="fld" id="ae-duration-fld">
-      <span>所要時間（開始からの長さで終了を自動入力）</span>
-      <div class="am-picks" id="ae-duration-picks">
-        <button type="button" class="am-pick" data-min="30">30分</button>
-        <button type="button" class="am-pick" data-min="60">1時間</button>
-        <button type="button" class="am-pick" data-min="90">1時間30分</button>
-        <button type="button" class="am-pick" data-min="120">2時間</button>
       </div>
     </div>
 
@@ -281,6 +271,35 @@
     <button class="school-flyout-close" id="event-flyout-close" title="閉じる">×</button>
   </div>
   <div id="event-flyout-body"></div>
+</div>
+
+<!-- ============ 予定追加/編集：開始・終了をスライダーで同時に動かすパネル
+     （「開始」「終了」欄をタップすると開く。所要時間ボタンもここに置く） ============ -->
+<div class="member-flyout" id="time-flyout" hidden>
+  <div class="school-flyout-head">
+    <h2>時刻を選ぶ</h2>
+    <button class="school-flyout-close" id="time-flyout-close" title="閉じる">×</button>
+  </div>
+  <div class="time-flyout-row">
+    <span class="time-flyout-label">開始</span>
+    <span class="time-flyout-value" id="time-start-val">09:00</span>
+  </div>
+  <input type="range" class="time-flyout-slider" id="time-start-range" min="0" max="1439" step="5" value="540">
+  <div class="time-flyout-row">
+    <span class="time-flyout-label">終了</span>
+    <span class="time-flyout-value" id="time-end-val">10:00</span>
+  </div>
+  <input type="range" class="time-flyout-slider" id="time-end-range" min="0" max="1439" step="5" value="600">
+  <div class="fld time-flyout-duration">
+    <span>所要時間（開始からの長さで終了を変更）</span>
+    <div class="am-picks" id="time-duration-picks">
+      <button type="button" class="am-pick" data-min="30">30分</button>
+      <button type="button" class="am-pick" data-min="60">1時間</button>
+      <button type="button" class="am-pick" data-min="90">1時間30分</button>
+      <button type="button" class="am-pick" data-min="120">2時間</button>
+    </div>
+  </div>
+  <button type="button" class="btn time-flyout-done" id="time-flyout-done">決定</button>
 </div>
 
 <script src="app.js"></script>

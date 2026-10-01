@@ -1778,20 +1778,67 @@ function readEscortSelections() {
   return out;
 }
 
-/* 所要時間ボタン（30分〜2時間）。押した瞬間の「開始」を基準に、その長さぶん
-   足した時刻を「終了」へ自動で入れる（開始・終了を別々に触らなくて済むように）。
-   日をまたぐ場合（23時台に2時間など）はこのフォームが1日の予定しか
-   作れないため、23:59に収める。 */
-function initDurationPicker() {
-  $('ae-duration-picks').addEventListener('click', function (ev) {
+/* 開始・終了を1つの画面でスライダーで同時に動かすパネル。
+   「開始」「終了」欄は(ネイティブの時刻ピッカーが使いにくい・差し込めないため)
+   readonlyのtext入力にしてあり、タップすると代わりにこのパネルを開く。
+   所要時間ボタンもここに同居させ、押すと「終了」のスライダーを
+   「開始＋その長さ」の位置まで動かす。 */
+function timeFromMinutes(total) {
+  total = Math.max(0, Math.min(1439, Math.round(total)));
+  return pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+}
+function minutesFromTime(hhmm) {
+  var p = String(hhmm || '00:00').split(':');
+  return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+}
+function openTimeFlyout(anchorRect) {
+  var startMin = minutesFromTime($('ae-start').value);
+  var endMin = minutesFromTime($('ae-end').value);
+  $('time-start-range').value = startMin;
+  $('time-end-range').value = endMin;
+  $('time-start-val').textContent = timeFromMinutes(startMin);
+  $('time-end-val').textContent = timeFromMinutes(endMin);
+
+  closeSchoolTable();
+  closeMemberSchedule();
+  closeEventDetail();
+  var flyout = $('time-flyout');
+  flyout.hidden = false;
+  if (anchorRect) positionFlyout(flyout, anchorRect);
+}
+function closeTimeFlyout() {
+  $('time-flyout').hidden = true;
+}
+function initTimeFlyout() {
+  /* ev.stopPropagation()が無いと、この同じクリックがdocumentまで伝わって
+     「外側タップで閉じる」の判定に引っかかり、開いた瞬間に閉じてしまう。 */
+  $('ae-start').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(this.getBoundingClientRect()); });
+  $('ae-end').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(this.getBoundingClientRect()); });
+  $('time-flyout-close').addEventListener('click', closeTimeFlyout);
+  $('time-flyout-done').addEventListener('click', closeTimeFlyout);
+
+  $('time-start-range').addEventListener('input', function () {
+    var t = timeFromMinutes(this.value);
+    $('time-start-val').textContent = t;
+    $('ae-start').value = t;
+  });
+  $('time-end-range').addEventListener('input', function () {
+    var t = timeFromMinutes(this.value);
+    $('time-end-val').textContent = t;
+    $('ae-end').value = t;
+  });
+
+  /* 所要時間ボタン：いまの「開始」スライダーの位置を基準に、その長さぶん
+     足した時刻まで「終了」スライダーを動かす。1439分(23:59)に収める。 */
+  $('time-duration-picks').addEventListener('click', function (ev) {
     var btn = ev.target.closest('.am-pick');
     if (!btn) return;
-    var startVal = $('ae-start').value;
-    if (!startVal) return;
     var mins = parseInt(btn.getAttribute('data-min'), 10);
-    var p = startVal.split(':');
-    var total = Math.min(parseInt(p[0], 10) * 60 + parseInt(p[1], 10) + mins, 23 * 60 + 59);
-    $('ae-end').value = pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+    var endMin = parseInt($('time-start-range').value, 10) + mins;
+    var t = timeFromMinutes(endMin);
+    $('time-end-range').value = Math.min(1439, endMin);
+    $('time-end-val').textContent = t;
+    $('ae-end').value = t;
   });
 }
 
@@ -1829,7 +1876,6 @@ function openAddEvent() {
   $('ae-memo').value = '';
   $('ae-allday').checked = false;
   $('ae-time-row').hidden = false;
-  $('ae-duration-fld').hidden = false;
   $('ae-date').value = ymd(STATE.viewDate);
   $('ae-start').value = '09:00';
   $('ae-end').value = '10:00';
@@ -1853,7 +1899,6 @@ function openEditEvent(ev) {
   $('ae-memo').value = ev.memo || '';
   $('ae-allday').checked = ev.allDay;
   $('ae-time-row').hidden = ev.allDay;
-  $('ae-duration-fld').hidden = ev.allDay;
   $('ae-date').value = ymd(ev.start);
   $('ae-start').value = ev.allDay ? '09:00' : hhmm(ev.start);
   $('ae-end').value = ev.allDay ? '10:00' : hhmm(ev.end);
@@ -2143,12 +2188,11 @@ function init() {
   $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
   initEscortPickers();
-  initDurationPicker();
+  initTimeFlyout();
   initAgendaTap();
   initMonthDetailTap();
   $('ae-allday').addEventListener('change', function () {
     $('ae-time-row').hidden = this.checked;
-    $('ae-duration-fld').hidden = this.checked;
   });
   $('modal-add').addEventListener('click', function (ev) {
     if (ev.target === $('modal-add')) closeAddEvent();
@@ -2195,6 +2239,8 @@ function init() {
     if (!mflyout.hidden && !mflyout.contains(ev.target)) closeMemberSchedule();
     var eflyout = $('event-flyout');
     if (!eflyout.hidden && !eflyout.contains(ev.target)) closeEventDetail();
+    var tflyout = $('time-flyout');
+    if (!tflyout.hidden && !tflyout.contains(ev.target)) closeTimeFlyout();
   });
 
   // 左右スワイプで日付移動
