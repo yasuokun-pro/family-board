@@ -1137,7 +1137,7 @@ body.kiosk-mode.controls-visible .board-tools {
   width: calc(100% - 4vh);
   max-width: 360px;
   max-height: 85vh;
-  overflow: visible;
+  overflow-y: auto;
   box-shadow: 0 0.8vh 3vh rgba(0, 0, 0, 0.55);
 }
 .time-flyout[hidden] { display: none !important; }
@@ -1150,11 +1150,21 @@ body.kiosk-mode.controls-visible .board-tools {
 .time-flyout-row:first-of-type { margin-top: 0; }
 .time-flyout-label { font-size: 13px; color: var(--muted); }
 .time-flyout-value {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+/* 開始・終了を横並びにして縦の高さを圧縮（短い画面でもボタンまで
+   画面内に収まるようにするため）。 */
+.time-wheel-pair {
+  display: flex;
+  gap: 2.4vh;
+  justify-content: center;
+  margin-top: 1.4vh;
+}
+.time-wheel-group { flex: 1; min-width: 0; }
+.time-wheel-group .time-flyout-row { margin-top: 0; gap: 0.6vh; }
 /* 時・分を選ぶホイール（ネイティブの時刻ピッカーと同じ操作感）。
    ブラウザ標準の縦スクロール＋scroll-snapで作る。自前でドラッグ量を
    計算していたスライダーより、端末差なく確実に動く。1分刻みで選べる
@@ -1201,8 +1211,8 @@ body.kiosk-mode.controls-visible .board-tools {
   pointer-events: none;
 }
 .time-flyout-duration { margin: 1.6vh 0 0; }
-.time-flyout-duration .am-picks { flex-wrap: nowrap; gap: 4px; }
-.time-flyout-duration .am-pick { padding: 6px 8px; font-size: 12px; }
+.time-flyout-duration .am-picks { flex-wrap: nowrap; gap: 3px; }
+.time-flyout-duration .am-pick { padding: 6px 5px; font-size: 11px; }
 .time-flyout-done { display: block; width: 100%; margin-top: 1.4vh; }
 .mf-ev {
   display: flex;

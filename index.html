@@ -284,25 +284,31 @@
     <h2>時刻を選ぶ</h2>
     <button class="school-flyout-close" id="time-flyout-close" title="閉じる">×</button>
   </div>
-  <div class="time-flyout-row">
-    <span class="time-flyout-label">開始</span>
-    <span class="time-flyout-value" id="time-start-val">09:00</span>
-  </div>
-  <div class="time-wheel">
-    <div class="time-wheel-col" id="time-start-hour"></div>
-    <div class="time-wheel-colon">:</div>
-    <div class="time-wheel-col" id="time-start-minute"></div>
-    <div class="time-wheel-highlight"></div>
-  </div>
-  <div class="time-flyout-row">
-    <span class="time-flyout-label">終了</span>
-    <span class="time-flyout-value" id="time-end-val">10:00</span>
-  </div>
-  <div class="time-wheel">
-    <div class="time-wheel-col" id="time-end-hour"></div>
-    <div class="time-wheel-colon">:</div>
-    <div class="time-wheel-col" id="time-end-minute"></div>
-    <div class="time-wheel-highlight"></div>
+  <div class="time-wheel-pair">
+    <div class="time-wheel-group">
+      <div class="time-flyout-row">
+        <span class="time-flyout-label">開始</span>
+        <span class="time-flyout-value" id="time-start-val">09:00</span>
+      </div>
+      <div class="time-wheel">
+        <div class="time-wheel-col" id="time-start-hour"></div>
+        <div class="time-wheel-colon">:</div>
+        <div class="time-wheel-col" id="time-start-minute"></div>
+        <div class="time-wheel-highlight"></div>
+      </div>
+    </div>
+    <div class="time-wheel-group">
+      <div class="time-flyout-row">
+        <span class="time-flyout-label">終了</span>
+        <span class="time-flyout-value" id="time-end-val">10:00</span>
+      </div>
+      <div class="time-wheel">
+        <div class="time-wheel-col" id="time-end-hour"></div>
+        <div class="time-wheel-colon">:</div>
+        <div class="time-wheel-col" id="time-end-minute"></div>
+        <div class="time-wheel-highlight"></div>
+      </div>
+    </div>
   </div>
   <div class="fld time-flyout-duration">
     <span>所要時間（開始からの長さで終了を変更）</span>
@@ -311,6 +317,7 @@
       <button type="button" class="am-pick" data-min="60">60分</button>
       <button type="button" class="am-pick" data-min="90">90分</button>
       <button type="button" class="am-pick" data-min="120">120分</button>
+      <button type="button" class="am-pick" data-min="180">180分</button>
     </div>
   </div>
   <button type="button" class="btn time-flyout-done" id="time-flyout-done">決定</button>
