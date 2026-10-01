@@ -273,9 +273,11 @@
   <div id="event-flyout-body"></div>
 </div>
 
-<!-- ============ 予定追加/編集：開始・終了をスライダーで同時に動かすパネル
-     （「開始」「終了」欄をタップすると開く。所要時間ボタンもここに置く） ============ -->
-<div class="member-flyout" id="time-flyout" hidden>
+<!-- ============ 予定追加/編集：開始・終了を動かすパネル（画面中央に表示）
+     「開始」「終了」欄をタップすると開く。スライダーはネイティブのinput[range]だと
+     iOSでうまくドラッグできない端末があったため、タッチ操作を自前で処理する
+     独自スライダー(.time-slider)にしている。所要時間ボタンもここに同居。 ============ -->
+<div class="time-flyout" id="time-flyout" hidden>
   <div class="school-flyout-head">
     <h2>時刻を選ぶ</h2>
     <button class="school-flyout-close" id="time-flyout-close" title="閉じる">×</button>
@@ -284,19 +286,29 @@
     <span class="time-flyout-label">開始</span>
     <span class="time-flyout-value" id="time-start-val">09:00</span>
   </div>
-  <input type="range" class="time-flyout-slider" id="time-start-range" min="0" max="1439" step="5" value="540">
+  <div class="time-slider" id="time-start-slider" data-min="0" data-max="1439" data-value="540">
+    <div class="time-slider-track">
+      <div class="time-slider-fill"></div>
+      <div class="time-slider-thumb"></div>
+    </div>
+  </div>
   <div class="time-flyout-row">
     <span class="time-flyout-label">終了</span>
     <span class="time-flyout-value" id="time-end-val">10:00</span>
   </div>
-  <input type="range" class="time-flyout-slider" id="time-end-range" min="0" max="1439" step="5" value="600">
+  <div class="time-slider" id="time-end-slider" data-min="0" data-max="1439" data-value="600">
+    <div class="time-slider-track">
+      <div class="time-slider-fill"></div>
+      <div class="time-slider-thumb"></div>
+    </div>
+  </div>
   <div class="fld time-flyout-duration">
     <span>所要時間（開始からの長さで終了を変更）</span>
     <div class="am-picks" id="time-duration-picks">
       <button type="button" class="am-pick" data-min="30">30分</button>
-      <button type="button" class="am-pick" data-min="60">1時間</button>
-      <button type="button" class="am-pick" data-min="90">1時間30分</button>
-      <button type="button" class="am-pick" data-min="120">2時間</button>
+      <button type="button" class="am-pick" data-min="60">60分</button>
+      <button type="button" class="am-pick" data-min="90">90分</button>
+      <button type="button" class="am-pick" data-min="120">120分</button>
     </div>
   </div>
   <button type="button" class="btn time-flyout-done" id="time-flyout-done">決定</button>

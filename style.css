@@ -1118,86 +1118,91 @@ body.kiosk-mode.controls-visible .board-tools {
 .member-flyout[hidden] { display: none !important; }
 .member-flyout-list { display: flex; flex-direction: column; }
 
-/* --- 予定追加/編集：時刻スライダーパネル ---
-   「開始」「終了」欄をタップして開く。スライダー2本（開始・終了）を
-   1つの画面にまとめて、所要時間ボタンもここに同居させる。 */
+/* --- 予定追加/編集：時刻パネル ---
+   「開始」「終了」欄をタップして開く。他のflyout(ボードの上にタップした場所の
+   横へ出す)とは違い、これは予定追加/編集の.modal(z-index:100)の中から開く
+   ものなので、それより高いz-indexにした上で、画面中央に固定表示する
+   （タップした場所の横に出す方式だと、端末によっては位置がずれて
+   「終日の予定」チェックボックスなど他の部品と重なってしまったため）。 */
+.time-flyout {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 110;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1.2vh;
+  padding: 1.6vh 1.8vh;
+  width: calc(100% - 4vh);
+  max-width: 360px;
+  max-height: 85vh;
+  overflow: visible;
+  box-shadow: 0 0.8vh 3vh rgba(0, 0, 0, 0.55);
+}
+.time-flyout[hidden] { display: none !important; }
 .time-flyout-row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-top: 1vh;
+  margin-top: 1.4vh;
 }
 .time-flyout-row:first-of-type { margin-top: 0; }
 .time-flyout-label { font-size: 13px; color: var(--muted); }
 .time-flyout-value {
-  font-size: 2.4vh;
+  font-size: 22px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-/* スライダー本体は当たり判定ぶん高さを確保し(28px)、見た目の線(track)だけ
-   細くする。touch-action:noneで、指で横にドラッグした瞬間にページ側の
-   スワイプ（日付移動）やスクロールに持っていかれないようにしている
-   （これが無いと「つまめない・動かせない」ように感じる原因になる）。
-   つまんだ瞬間(:active)はつまみを一回り大きくし、淡い光彩を付けて
-   「いま掴んでいる」ことが分かるようにした。 */
-.time-flyout-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  display: block;
-  width: 100%;
-  height: 28px;
-  margin: 0.2vh 0;
-  background: transparent;
-  outline: none;
+/* 独自スライダー。ネイティブのinput[type=range]はiOSの端末によって
+   ドラッグがうまく拾えないことがあったため、タッチ/マウスの移動量を
+   自前で計算する方式にした（app.jsのsetupTimeSlider()）。
+   当たり判定(.time-slider)は指で掴みやすいよう余白を広めに取り、
+   見た目の線(.time-slider-track)だけ細くする。 */
+.time-slider {
+  position: relative;
+  padding: 14px 13px;
+  margin: 0 -13px;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
-.time-flyout-slider::-webkit-slider-runnable-track {
+.time-slider-track {
+  position: relative;
   height: 6px;
   border-radius: 3px;
   background: var(--line-soft);
 }
-.time-flyout-slider::-moz-range-track {
-  height: 6px;
+.time-slider-fill {
+  position: absolute;
+  top: 0; left: 0; height: 100%;
   border-radius: 3px;
-  background: var(--line-soft);
+  background: #2E7DE0;
+  pointer-events: none;
 }
-.time-flyout-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 26px;
-  height: 26px;
-  margin-top: -10px;   /* トラック(6px)の中心につまみ(26px)を合わせる: (6-26)/2 */
+.time-slider-thumb {
+  position: absolute;
+  top: 50%; left: 0;
+  width: 26px; height: 26px;
+  margin-left: -13px; margin-top: -13px;
   border-radius: 50%;
   background: #2E7DE0;
   border: 2px solid #0B0F14;
-  cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.1s ease;
+  pointer-events: none;
 }
-.time-flyout-slider::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #2E7DE0;
-  border: 2px solid #0B0F14;
-  cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-.time-flyout-slider:active::-webkit-slider-thumb {
+/* つまんでいる間はつまみを一回り大きくし、淡い光彩を付けて
+   「いま掴んでいる」ことが分かるようにする。 */
+.time-slider.dragging .time-slider-thumb {
   transform: scale(1.3);
   box-shadow: 0 0 0 9px rgba(46, 125, 224, 0.28);
 }
-.time-flyout-slider:active::-moz-range-thumb {
-  transform: scale(1.3);
-  box-shadow: 0 0 0 9px rgba(46, 125, 224, 0.28);
-}
-.time-flyout-duration { margin: 1.4vh 0 0; }
-.time-flyout-done { display: block; width: 100%; margin-top: 1.2vh; }
-/* 予定追加/編集の.modal(z-index:100)の上に出す必要があるので、
-   他のflyout(z-index:90、ボードの上に出すだけのもの)より高くする。 */
-#time-flyout { z-index: 110; }
+.time-flyout-duration { margin: 1.6vh 0 0; }
+.time-flyout-duration .am-picks { flex-wrap: nowrap; gap: 4px; }
+.time-flyout-duration .am-pick { padding: 6px 8px; font-size: 12px; }
+.time-flyout-done { display: block; width: 100%; margin-top: 1.4vh; }
 .mf-ev {
   display: flex;
   gap: 0.8vh;

@@ -1778,11 +1778,15 @@ function readEscortSelections() {
   return out;
 }
 
-/* 開始・終了を1つの画面でスライダーで同時に動かすパネル。
+/* 開始・終了を1つの画面（画面中央）で動かすパネル。
    「開始」「終了」欄は(ネイティブの時刻ピッカーが使いにくい・差し込めないため)
    readonlyのtext入力にしてあり、タップすると代わりにこのパネルを開く。
-   所要時間ボタンもここに同居させ、押すと「終了」のスライダーを
-   「開始＋その長さ」の位置まで動かす。 */
+   所要時間ボタンもここに同居させ、押すと「終了」を「開始＋その長さ」まで動かす。
+
+   スライダーはネイティブのinput[type=range]だと、端末によっては
+   touch-action:noneを指定してもドラッグがうまく拾えない（iOS Safariの
+   個体差が疑われる）報告があったため、タッチ/マウスの移動量を自前で
+   計算する独自スライダーにした（setupTimeSlider()）。 */
 function timeFromMinutes(total) {
   total = Math.max(0, Math.min(1439, Math.round(total)));
   return pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
@@ -1791,20 +1795,102 @@ function minutesFromTime(hhmm) {
   var p = String(hhmm || '00:00').split(':');
   return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
 }
-function openTimeFlyout(anchorRect) {
+
+/* containerId: ルート要素(.time-slider)のid。onChangeはユーザーがつまみを
+   動かすたび(ドラッグ中/タップ直後)に呼ばれる。返り値のsetValue()は
+   外部（所要時間ボタンや初期値セット）から見た目だけ動かすのに使う
+   （onChangeは呼ばない＝無限ループにならないようにするため）。 */
+function setupTimeSlider(containerId, onChange) {
+  var el = $(containerId);
+  var track = el.querySelector('.time-slider-track');
+  var thumb = el.querySelector('.time-slider-thumb');
+  var fill = el.querySelector('.time-slider-fill');
+  var min = parseInt(el.getAttribute('data-min'), 10);
+  var max = parseInt(el.getAttribute('data-max'), 10);
+  var step = 5;
+  var dragging = false;
+
+  function paint(value) {
+    var pct = (value - min) / (max - min) * 100;
+    thumb.style.left = pct + '%';
+    fill.style.width = pct + '%';
+  }
+  function valueFromClientX(clientX) {
+    var rect = track.getBoundingClientRect();
+    var pct = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+    pct = Math.max(0, Math.min(1, pct));
+    var raw = min + pct * (max - min);
+    return Math.max(min, Math.min(max, Math.round(raw / step) * step));
+  }
+  function setValue(value) {
+    value = Math.max(min, Math.min(max, value));
+    el.setAttribute('data-value', value);
+    paint(value);
+  }
+  function setValueFromPoint(clientX) {
+    setValue(valueFromClientX(clientX));
+    onChange(parseInt(el.getAttribute('data-value'), 10));
+  }
+
+  el.addEventListener('touchstart', function (e) {
+    dragging = true;
+    el.classList.add('dragging');
+    setValueFromPoint(e.touches[0].clientX);
+    e.preventDefault();
+  }, { passive: false });
+  el.addEventListener('touchmove', function (e) {
+    if (!dragging) return;
+    setValueFromPoint(e.touches[0].clientX);
+    e.preventDefault();
+  }, { passive: false });
+  el.addEventListener('touchend', function () {
+    dragging = false;
+    el.classList.remove('dragging');
+  });
+  el.addEventListener('touchcancel', function () {
+    dragging = false;
+    el.classList.remove('dragging');
+  });
+
+  // マウス操作（PCのブラウザで確認するとき用）
+  el.addEventListener('mousedown', function (e) {
+    dragging = true;
+    el.classList.add('dragging');
+    setValueFromPoint(e.clientX);
+    function onMove(ev) { if (dragging) setValueFromPoint(ev.clientX); }
+    function onUp() {
+      dragging = false;
+      el.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  paint(parseInt(el.getAttribute('data-value'), 10));
+
+  return {
+    setValue: setValue,
+    getValue: function () { return parseInt(el.getAttribute('data-value'), 10); }
+  };
+}
+
+var STATE_timeStartSlider = null;
+var STATE_timeEndSlider = null;
+
+function openTimeFlyout() {
   var startMin = minutesFromTime($('ae-start').value);
   var endMin = minutesFromTime($('ae-end').value);
-  $('time-start-range').value = startMin;
-  $('time-end-range').value = endMin;
+  STATE_timeStartSlider.setValue(startMin);
+  STATE_timeEndSlider.setValue(endMin);
   $('time-start-val').textContent = timeFromMinutes(startMin);
   $('time-end-val').textContent = timeFromMinutes(endMin);
 
   closeSchoolTable();
   closeMemberSchedule();
   closeEventDetail();
-  var flyout = $('time-flyout');
-  flyout.hidden = false;
-  if (anchorRect) positionFlyout(flyout, anchorRect);
+  $('time-flyout').hidden = false;
 }
 function closeTimeFlyout() {
   $('time-flyout').hidden = true;
@@ -1812,31 +1898,31 @@ function closeTimeFlyout() {
 function initTimeFlyout() {
   /* ev.stopPropagation()が無いと、この同じクリックがdocumentまで伝わって
      「外側タップで閉じる」の判定に引っかかり、開いた瞬間に閉じてしまう。 */
-  $('ae-start').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(this.getBoundingClientRect()); });
-  $('ae-end').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(this.getBoundingClientRect()); });
+  $('ae-start').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(); });
+  $('ae-end').addEventListener('click', function (ev) { ev.stopPropagation(); openTimeFlyout(); });
   $('time-flyout-close').addEventListener('click', closeTimeFlyout);
   $('time-flyout-done').addEventListener('click', closeTimeFlyout);
 
-  $('time-start-range').addEventListener('input', function () {
-    var t = timeFromMinutes(this.value);
+  STATE_timeStartSlider = setupTimeSlider('time-start-slider', function (value) {
+    var t = timeFromMinutes(value);
     $('time-start-val').textContent = t;
     $('ae-start').value = t;
   });
-  $('time-end-range').addEventListener('input', function () {
-    var t = timeFromMinutes(this.value);
+  STATE_timeEndSlider = setupTimeSlider('time-end-slider', function (value) {
+    var t = timeFromMinutes(value);
     $('time-end-val').textContent = t;
     $('ae-end').value = t;
   });
 
-  /* 所要時間ボタン：いまの「開始」スライダーの位置を基準に、その長さぶん
-     足した時刻まで「終了」スライダーを動かす。1439分(23:59)に収める。 */
+  /* 所要時間ボタン：いまの「開始」の位置を基準に、その長さぶん足した
+     時刻まで「終了」を動かす。1439分(23:59)に収める。 */
   $('time-duration-picks').addEventListener('click', function (ev) {
     var btn = ev.target.closest('.am-pick');
     if (!btn) return;
     var mins = parseInt(btn.getAttribute('data-min'), 10);
-    var endMin = parseInt($('time-start-range').value, 10) + mins;
+    var endMin = STATE_timeStartSlider.getValue() + mins;
     var t = timeFromMinutes(endMin);
-    $('time-end-range').value = Math.min(1439, endMin);
+    STATE_timeEndSlider.setValue(endMin);
     $('time-end-val').textContent = t;
     $('ae-end').value = t;
   });
