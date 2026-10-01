@@ -274,9 +274,11 @@
 </div>
 
 <!-- ============ 予定追加/編集：開始・終了を動かすパネル（画面中央に表示）
-     「開始」「終了」欄をタップすると開く。スライダーはネイティブのinput[range]だと
-     iOSでうまくドラッグできない端末があったため、タッチ操作を自前で処理する
-     独自スライダー(.time-slider)にしている。所要時間ボタンもここに同居。 ============ -->
+     「開始」「終了」欄をタップすると開く。スライダーはドラッグが拾えない端末が
+     あったため、ネイティブの時刻ピッカーと同じ「時・分をスクロールして選ぶ
+     ホイール」を自作した（ブラウザ標準のスクロール＋scroll-snapなので、
+     独自のタッチ処理をしていた頃より確実に動く。1分単位で選べるので
+     最後の微調整もしやすい）。所要時間ボタンもここに同居。 ============ -->
 <div class="time-flyout" id="time-flyout" hidden>
   <div class="school-flyout-head">
     <h2>時刻を選ぶ</h2>
@@ -286,21 +288,21 @@
     <span class="time-flyout-label">開始</span>
     <span class="time-flyout-value" id="time-start-val">09:00</span>
   </div>
-  <div class="time-slider" id="time-start-slider" data-min="0" data-max="1439" data-value="540">
-    <div class="time-slider-track">
-      <div class="time-slider-fill"></div>
-      <div class="time-slider-thumb"></div>
-    </div>
+  <div class="time-wheel">
+    <div class="time-wheel-col" id="time-start-hour"></div>
+    <div class="time-wheel-colon">:</div>
+    <div class="time-wheel-col" id="time-start-minute"></div>
+    <div class="time-wheel-highlight"></div>
   </div>
   <div class="time-flyout-row">
     <span class="time-flyout-label">終了</span>
     <span class="time-flyout-value" id="time-end-val">10:00</span>
   </div>
-  <div class="time-slider" id="time-end-slider" data-min="0" data-max="1439" data-value="600">
-    <div class="time-slider-track">
-      <div class="time-slider-fill"></div>
-      <div class="time-slider-thumb"></div>
-    </div>
+  <div class="time-wheel">
+    <div class="time-wheel-col" id="time-end-hour"></div>
+    <div class="time-wheel-colon">:</div>
+    <div class="time-wheel-col" id="time-end-minute"></div>
+    <div class="time-wheel-highlight"></div>
   </div>
   <div class="fld time-flyout-duration">
     <span>所要時間（開始からの長さで終了を変更）</span>
