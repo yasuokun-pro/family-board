@@ -824,6 +824,9 @@ body.kiosk-mode.controls-visible .board-tools {
   justify-content: center;
   z-index: 100;
   padding: 2vh;
+  /* iPhoneのステータスバー(時計)・ホームバーに重ならないよう、上下は安全領域ぶん空ける */
+  padding-top: max(2vh, calc(env(safe-area-inset-top) + 1vh));
+  padding-bottom: max(2vh, env(safe-area-inset-bottom));
   /* この背景自体はスクロールさせない。中身(.modal-box)側だけでスクロールを
      持たせること。fixed配置のまま overflow:auto + touch慣性スクロールを付けて
      [hidden]で出し入れすると、iOSのホーム画面アプリ(standalone)では
@@ -838,7 +841,7 @@ body.kiosk-mode.controls-visible .board-tools {
   padding: 2.4vh;
   width: 100%;
   max-width: 86vw;
-  max-height: 94vh;
+  max-height: 100%;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   user-select: text;
@@ -930,6 +933,20 @@ body.kiosk-mode.controls-visible .board-tools {
   transition: transform 0.08s ease;
 }
 .am-pick.sel { background: var(--c); color: #0B0F14; }
+/* 「誰の予定？」は6個を等幅で1段に並べる（ひらがな3文字の名前でも入る幅） */
+.am-picks-one {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 6), 1fr);
+  gap: 5px;
+}
+.am-picks-one .am-pick {
+  min-width: 0;
+  padding: 8px 0;
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: center;
+  overflow: hidden;
+}
 /* 押した瞬間だけ少し縮めて、押した感覚が分かるようにする */
 .am-pick:active { transform: scale(0.92); }
 
@@ -947,7 +964,40 @@ body.kiosk-mode.controls-visible .board-tools {
   font-size: 13px;
   color: var(--muted);
 }
-.escort-picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.escort-picks {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 5), 1fr);
+  gap: 4px;
+  align-items: center;
+}
+.escort-name {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* 担当の丸チェック。名前は見出し行にあるので、ここは丸だけ。 */
+.escort-picks .am-pick {
+  justify-self: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-width: 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.escort-picks .am-pick.sel::after {
+  content: '✓';
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: #0B0F14;
+}
 .escort-fld small {
   display: block;
   margin-top: 0.8vh;
@@ -1336,6 +1386,8 @@ body.kiosk-mode.controls-visible .board-tools {
     padding-top: max(1.2vh, env(safe-area-inset-top));
   }
   .board-title { font-size: 2.6vh; }
+  /* 手元のiPhoneでは横幅を目いっぱい使う（ピルを1段に収めるため） */
+  .modal-box { max-width: 100%; }
 
   /* 縦向き(手持ちのiPhone)は横幅が狭く、ボタン6個+更新時刻を1行に
      収めると画面からはみ出す機種があった(iPhone 8/SE幅の375pxで実測)。

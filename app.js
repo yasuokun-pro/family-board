@@ -1720,6 +1720,7 @@ function renderAddMemberPicker(selectedKey) {
     html += '<button type="button" class="am-pick' + (m.key === selectedKey ? ' sel' : '') +
             '" data-key="' + m.key + '" style="--c:' + m.color + '">' + esc(m.label) + '</button>';
   }
+  $('ae-members').style.setProperty('--n', all.length);
   $('ae-members').innerHTML = html;
 }
 
@@ -1745,12 +1746,25 @@ function renderEscortPicker(role, selectedKeys) {
   for (var i = 0; i < all.length; i++) {
     var m = all[i];
     html += '<button type="button" class="am-pick' + (sel.indexOf(m.key) >= 0 ? ' sel' : '') +
-            '" data-key="' + m.key + '" style="--c:' + m.color + '">' + esc(m.label) + '</button>';
+            '" data-key="' + m.key + '" aria-label="' + esc(m.label) + '" style="--c:' + m.color + '"></button>';
   }
+  $('ae-escort-' + role).style.setProperty('--n', all.length);
   $('ae-escort-' + role).innerHTML = html;
+}
+/* 送り・迎え・付き添いは「名前の見出し1行＋丸いチェック3行」の表にする
+   （名前を3行ぶん繰り返すより、縦横ともコンパクトで1段に収まる）。 */
+function renderEscortHead() {
+  var all = memberList();
+  var html = '';
+  for (var i = 0; i < all.length; i++) {
+    html += '<span class="escort-name" style="color:' + all[i].color + '">' + esc(all[i].label) + '</span>';
+  }
+  $('ae-escort-head').style.setProperty('--n', all.length);
+  $('ae-escort-head').innerHTML = html;
 }
 function renderEscortPickers(escort) {
   var e = escort || emptyEscort();
+  renderEscortHead();
   for (var i = 0; i < ESCORT_ROLES.length; i++) {
     renderEscortPicker(ESCORT_ROLES[i], e[ESCORT_ROLES[i]]);
   }
