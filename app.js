@@ -2005,7 +2005,7 @@ function setSyncStatus(text, kind) {
 function openAddEvent() {
   STATE.editingEvent = null;
   $('ae-heading').textContent = '予定を追加';
-  $('ae-save').textContent = '追加する';
+  $('ae-save').textContent = '追加';
   $('ae-delete').hidden = true;
   $('ae-save').disabled = false;
   $('ae-delete').disabled = false;
@@ -2027,7 +2027,7 @@ function openAddEvent() {
 function openEditEvent(ev) {
   STATE.editingEvent = ev;
   $('ae-heading').textContent = '予定を編集';
-  $('ae-save').textContent = '更新する';
+  $('ae-save').textContent = '更新';
   $('ae-delete').hidden = false;
   /* 繰り返し予定はカレンダー側で1件だけ直せず、全体が壊れるので、ボードからは触らせない */
   $('ae-save').disabled = !!ev.recurring;

@@ -1002,6 +1002,7 @@ body.kiosk-mode.controls-visible .board-tools {
   align-items: center;
   justify-content: flex-end;
 }
+.modal-actions .btn { white-space: nowrap; }
 .modal-msg {
   flex: 1 1 auto;
   font-size: 1.6vh;
