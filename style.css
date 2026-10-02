@@ -1186,7 +1186,6 @@ body.kiosk-mode.controls-visible .board-tools {
   width: 54px;
   height: 100%;
   overflow-y: scroll;
-  scroll-snap-type: y mandatory;
   scrollbar-width: none;
 }
 .time-wheel-col::-webkit-scrollbar { display: none; }
@@ -1199,7 +1198,6 @@ body.kiosk-mode.controls-visible .board-tools {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--dim);
-  scroll-snap-align: center;
 }
 .time-wheel-item.selected { color: var(--text); font-weight: 700; }
 .time-wheel-colon { font-size: 20px; font-weight: 700; color: var(--text); padding: 0 2px; }

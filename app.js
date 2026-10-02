@@ -1854,11 +1854,20 @@ function setupTimeWheelCol(colId, count, onChange) {
     paintSelected(value);
   }
 
-  /* 止まったら（指を離していれば）真ん中のコピーへ戻して、上下どちらにも
-     十分な余白がある状態にする。 */
+  /* 止まったら（指を離していれば）①一番近い行へ吸着 ②真ん中のコピーへ戻す。
+     scroll-snapを使うとiOSでは勢いよく弾いても1〜数行しか進まず「早く回しても
+     多く回らない」ため、吸着は止まってからJSで行う（途中はブラウザ標準の慣性
+     スクロールに任せるので、速く弾くほど遠くまで回る）。 */
   function recenter() {
     if (touching) return;
     var idx = Math.round(el.scrollTop / TIME_WHEEL_ITEM_H);
+    var top = idx * TIME_WHEEL_ITEM_H;
+    if (Math.abs(el.scrollTop - top) > 1) {
+      try { el.scrollTo({ top: top, behavior: 'smooth' }); }
+      catch (e) { el.scrollTop = top; }
+      armRecenter();
+      return;
+    }
     var target = mid * count + (((idx % count) + count) % count);
     if (idx !== target) jumpTo(target);
   }
