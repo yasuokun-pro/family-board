@@ -1797,26 +1797,33 @@ function minutesFromTime(hhmm) {
 }
 
 var TIME_WHEEL_ITEM_H = 40;
+var TIME_WHEEL_COPIES = 5;
 
 /* colId: ホイール列(.time-wheel-col)のid。count: 0〜count-1 の値を並べる。
-   onSettle: スクロールが止まって値が確定するたびに呼ばれる。
+   0と最大値がつながって回り続けるよう、同じ数字列をTIME_WHEEL_COPIES回
+   並べ、指を離してスクロールが止まったら見た目が同じ「真ん中のコピー」へ
+   黙って戻す（23の次は0、59の次は0へ行き来できる）。
+   onChange: 真ん中の行が変わるたび（ドラッグ中も）呼ばれる。
    返り値のsetValue()は外部（所要時間ボタンや初期値セット）から見た目と
-   内部値を動かすのに使う（onSettleは呼ばない＝無限ループ防止）。 */
-function setupTimeWheelCol(colId, count, onSettle) {
+   内部値を動かすのに使う（onChangeは呼ばない＝無限ループ防止）。 */
+function setupTimeWheelCol(colId, count, onChange) {
   var el = $(colId);
   el.innerHTML = '';
+  var mid = Math.floor(TIME_WHEEL_COPIES / 2);
 
   var pad = document.createElement('div');
   pad.className = 'time-wheel-pad';
   el.appendChild(pad);
 
   var items = [];
-  for (var i = 0; i < count; i++) {
-    var item = document.createElement('div');
-    item.className = 'time-wheel-item';
-    item.textContent = pad2(i);
-    el.appendChild(item);
-    items.push(item);
+  for (var c = 0; c < TIME_WHEEL_COPIES; c++) {
+    for (var i = 0; i < count; i++) {
+      var item = document.createElement('div');
+      item.className = 'time-wheel-item';
+      item.textContent = pad2(i);
+      el.appendChild(item);
+      items.push(item);
+    }
   }
 
   var padEnd = document.createElement('div');
@@ -1826,35 +1833,54 @@ function setupTimeWheelCol(colId, count, onSettle) {
   var current = 0;
   var scrollTimer = null;
   var suppress = false;
+  var touching = false;
 
   function paintSelected(value) {
     for (var i = 0; i < items.length; i++) {
-      items[i].classList.toggle('selected', i === value);
+      items[i].classList.toggle('selected', (i % count) === value);
     }
   }
 
-  function setValue(value) {
-    value = Math.max(0, Math.min(count - 1, value));
-    current = value;
+  function jumpTo(index) {
     suppress = true;
-    el.scrollTop = value * TIME_WHEEL_ITEM_H;
+    el.scrollTop = index * TIME_WHEEL_ITEM_H;
+    setTimeout(function () { suppress = false; }, 60);
+  }
+
+  function setValue(value) {
+    value = ((Math.round(value) % count) + count) % count;
+    current = value;
+    jumpTo(mid * count + value);
     paintSelected(value);
-    /* scrollTopを即時に書き換えてもscrollイベントが非同期に飛んでくるため、
-       少し待ってからsuppressを解除する（自分で動かした分をonSettleに
-       二重通知しないようにするため）。 */
-    setTimeout(function () { suppress = false; }, 50);
+  }
+
+  /* 止まったら（指を離していれば）真ん中のコピーへ戻して、上下どちらにも
+     十分な余白がある状態にする。 */
+  function recenter() {
+    if (touching) return;
+    var idx = Math.round(el.scrollTop / TIME_WHEEL_ITEM_H);
+    var target = mid * count + (((idx % count) + count) % count);
+    if (idx !== target) jumpTo(target);
+  }
+  function armRecenter() {
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(recenter, 140);
   }
 
   el.addEventListener('scroll', function () {
     if (suppress) return;
-    if (scrollTimer) clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(function () {
-      var value = Math.max(0, Math.min(count - 1, Math.round(el.scrollTop / TIME_WHEEL_ITEM_H)));
+    var idx = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / TIME_WHEEL_ITEM_H)));
+    var value = idx % count;
+    if (value !== current) {
       current = value;
       paintSelected(value);
-      onSettle(value);
-    }, 100);
+      onChange(value);
+    }
+    armRecenter();
   }, { passive: true });
+  el.addEventListener('touchstart', function () { touching = true; }, { passive: true });
+  el.addEventListener('touchend', function () { touching = false; armRecenter(); }, { passive: true });
+  el.addEventListener('touchcancel', function () { touching = false; armRecenter(); }, { passive: true });
 
   setValue(0);
 
@@ -1869,6 +1895,16 @@ var STATE_timeStartMinuteWheel = null;
 var STATE_timeEndHourWheel = null;
 var STATE_timeEndMinuteWheel = null;
 
+/* いまの開始〜終了の長さと同じ所要時間ボタンがあれば、選択状態にして見せる */
+function markDurationPick() {
+  var s = STATE_timeStartHourWheel.getValue() * 60 + STATE_timeStartMinuteWheel.getValue();
+  var e = STATE_timeEndHourWheel.getValue() * 60 + STATE_timeEndMinuteWheel.getValue();
+  var picks = $('time-duration-picks').querySelectorAll('.am-pick');
+  for (var i = 0; i < picks.length; i++) {
+    picks[i].classList.toggle('sel', parseInt(picks[i].getAttribute('data-min'), 10) === e - s);
+  }
+}
+
 function openTimeFlyout() {
   var startMin = minutesFromTime($('ae-start').value);
   var endMin = minutesFromTime($('ae-end').value);
@@ -1876,6 +1912,9 @@ function openTimeFlyout() {
   closeSchoolTable();
   closeMemberSchedule();
   closeEventDetail();
+  /* タップした欄にフォーカスが残るとiOSが画面をずらして、パネル内のタップ位置が
+     ずれることがあるため、フォーカスを外しておく。 */
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   /* hidden状態の要素はレイアウトを持たずscrollTopを設定しても反映されないため、
      先にパネルを表示してからホイールの位置を合わせる。 */
   $('time-flyout').hidden = false;
@@ -1886,6 +1925,7 @@ function openTimeFlyout() {
   STATE_timeEndMinuteWheel.setValue(endMin % 60);
   $('time-start-val').textContent = timeFromMinutes(startMin);
   $('time-end-val').textContent = timeFromMinutes(endMin);
+  markDurationPick();
 }
 function closeTimeFlyout() {
   $('time-flyout').hidden = true;
@@ -1902,11 +1942,13 @@ function initTimeFlyout() {
     var t = timeFromMinutes(STATE_timeStartHourWheel.getValue() * 60 + STATE_timeStartMinuteWheel.getValue());
     $('time-start-val').textContent = t;
     $('ae-start').value = t;
+    markDurationPick();
   }
   function updateEnd() {
     var t = timeFromMinutes(STATE_timeEndHourWheel.getValue() * 60 + STATE_timeEndMinuteWheel.getValue());
     $('time-end-val').textContent = t;
     $('ae-end').value = t;
+    markDurationPick();
   }
 
   STATE_timeStartHourWheel = setupTimeWheelCol('time-start-hour', 24, updateStart);
@@ -1926,6 +1968,7 @@ function initTimeFlyout() {
     STATE_timeEndMinuteWheel.setValue(endMin % 60);
     $('time-end-val').textContent = timeFromMinutes(endMin);
     $('ae-end').value = timeFromMinutes(endMin);
+    markDurationPick();
   });
 }
 

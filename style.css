@@ -1126,17 +1126,22 @@ body.kiosk-mode.controls-visible .board-tools {
    「終日の予定」チェックボックスなど他の部品と重なってしまったため）。 */
 .time-flyout {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 0; left: 0; right: 0; bottom: 0;
   z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.time-flyout-panel {
+  pointer-events: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 1.2vh;
   padding: 1.6vh 1.8vh;
   width: calc(100% - 4vh);
   max-width: 360px;
-  max-height: 85vh;
+  max-height: 92%;
   overflow-y: auto;
   box-shadow: 0 0.8vh 3vh rgba(0, 0, 0, 0.55);
 }
@@ -1182,7 +1187,6 @@ body.kiosk-mode.controls-visible .board-tools {
   height: 100%;
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .time-wheel-col::-webkit-scrollbar { display: none; }
@@ -1203,17 +1207,40 @@ body.kiosk-mode.controls-visible .board-tools {
    タップ/操作を奪わないようpointer-eventsは切っておく。 */
 .time-wheel-highlight {
   position: absolute;
-  left: 0; right: 0; top: 50%;
+  left: 0; right: 0; top: 40px;
   height: 40px;
-  transform: translateY(-50%);
   border-top: 1px solid var(--line-soft);
   border-bottom: 1px solid var(--line-soft);
   pointer-events: none;
 }
 .time-flyout-duration { margin: 1.6vh 0 0; }
-.time-flyout-duration .am-picks { flex-wrap: nowrap; gap: 3px; }
-.time-flyout-duration .am-pick { padding: 6px 5px; font-size: 11px; }
-.time-flyout-done { display: block; width: 100%; margin-top: 1.4vh; }
+.time-flyout-duration .am-picks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+.time-flyout-duration .am-pick {
+  padding: 13px 4px;
+  font-size: 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  transition: transform 0.08s ease, background 0.08s ease, color 0.08s ease;
+}
+.time-flyout-duration .am-pick.sel {
+  background: #2E7DE0;
+  border-color: #2E7DE0;
+  color: #fff;
+}
+.time-flyout-duration .am-pick:active {
+  transform: scale(0.9);
+  background: #5C9BEA;
+  border-color: #5C9BEA;
+  color: #fff;
+}
+.time-flyout-done { display: block; width: 100%; margin-top: 1.4vh; padding: 13px 2vh; font-size: 17px; }
 .mf-ev {
   display: flex;
   gap: 0.8vh;

@@ -280,6 +280,7 @@
      独自のタッチ処理をしていた頃より確実に動く。1分単位で選べるので
      最後の微調整もしやすい）。所要時間ボタンもここに同居。 ============ -->
 <div class="time-flyout" id="time-flyout" hidden>
+ <div class="time-flyout-panel">
   <div class="school-flyout-head">
     <h2>時刻を選ぶ</h2>
     <button class="school-flyout-close" id="time-flyout-close" title="閉じる">×</button>
@@ -317,10 +318,12 @@
       <button type="button" class="am-pick" data-min="60">60分</button>
       <button type="button" class="am-pick" data-min="90">90分</button>
       <button type="button" class="am-pick" data-min="120">120分</button>
+      <button type="button" class="am-pick" data-min="150">150分</button>
       <button type="button" class="am-pick" data-min="180">180分</button>
     </div>
   </div>
   <button type="button" class="btn time-flyout-done" id="time-flyout-done">決定</button>
+ </div>
 </div>
 
 <script src="app.js"></script>
