@@ -1388,6 +1388,46 @@ scroll-snap（`.time-wheel-col`/`.time-wheel-item`）を廃止し、慣性スク
 壁掛け（横向き・安全領域0）の見た目は変わらない。**デスクトップのプレビューでは
 safe-areaが常に0のため、実機での下がり具合は未確認。**
 
+## 繰り返し予定をボードから編集・削除できるように（2026-10-03、v57／GASバージョン9）
+
+**要望:** 繰り返しの予定を編集する良い方法。→ Calendar高度サービス（無料）を使い、
+「この日だけ／これ以降すべて／すべて」を選んで編集・削除できるようにした。
+（これまでの「ボードから触らせない」ガードは廃止。上のv7の記述は過去の経緯。）
+
+**GAS（gas/Code.gs）:** `doPost`のupdate/deleteで`isRecurringEvent()`のとき、CalendarAppではなく
+`Calendar.Events.*`を使う`updateRecurring()`/`deleteRecurring()`に渡す（`body.scope`必須）。
+- CalendarAppの`getId()`は**iCalUID**で、APIのevent idとは別物。`Calendar.Events.list({iCalUID})`で
+  元の予定(master)を、`Calendar.Events.instances()`で「この回」を開始時刻（終日は日付）で特定。
+- `this`: instanceをpatch/remove（個別の例外になる。日付も動かせる）。
+  `all`: masterをpatch/remove（**日付は動かさず**内容と時刻だけ。曜日指定の繰り返しとずれるため）。
+  `following`: 最初の回ならmasterをそのまま変更/削除、2回目以降はmasterを前日で打ち切り
+  （`UNTIL`、COUNT指定なら残り回数を新シリーズの`COUNT`に）、この回からの新しい繰り返しをinsert。
+  日付は動かさない。insert→patchの順で、patch失敗時は新規分をremoveして戻す。
+- **打ち切り(UNTIL)は「その日の0時の1秒前」**にする。開始時刻の1秒前にすると、後で「すべて」で
+  時刻を動かしたときに打ち切ったはずの回が復活する（本番で実測して修正）。
+- 限界: 「これ以降」は元シリーズ基準のEXDATE等を引き継がない／過去に個別変更した回が分割後に
+  元に戻ることがある。「すべて」は個別に変更済みの回の時刻も上書きされる（Googleの挙動）。
+  別カレンダーへ移す変更（担当変更でカレンダーが変わる場合）は拒否。
+
+**事前準備（実施済み）:** appsscript.jsonの`dependencies.enabledAdvancedServices`にCalendar(v3)を追加
+（エディタの「サービス ＋」でも同じ）。oauthScopesは従来の`calendar.readonly`/`calendar.events`のまま
+でAPIの呼び出しが通ったので、スコープ変更もデプロイURL変更も不要だった。
+
+**クライアント:** 繰り返し予定を開くと編集画面の上に「どこまで変更しますか？」の3択（`#ae-scope`）が出る。
+「これ以降すべて」「すべて」では日付欄を無効化。更新・削除のリクエストに`scope`を付ける。削除の確認ダイアログにも範囲を表示。
+
+**検証（本番データでテスト用の週次4回シリーズを作って実施、全部削除済み）:** 1回分だけ日付変更→他3回は無傷／
+2回目以降で「これ以降」→COUNTが引き継がれ分割／「すべて」で時刻変更→復活なし／1回だけ削除／
+全削除・最初の回の「これ以降」削除。ロジックは`gas/Code.gs`をモックで先に確認（Node）。
+**デプロイ手順の知見:** (1) 14KB超のコードは、先に`gas/Code.gs`をgit pushしてGitHub Pages経由
+（`https://yasuokun-pro.github.io/family-board/gas/Code.gs`）でエディタのページから`fetch`し、長さと
+文字コード合計で検算してMonacoの`pushEditOperations`で全置換するのが確実（手書き転記は不要）。
+(2) 「デプロイを管理」のバージョン選択は、座標クリックだと「新バージョン」が選ばれず**同じバージョンを
+再デプロイしてしまう**ことがあった（結果のダイアログが前と同じバージョン番号なら失敗）。
+DOMの`[role=combobox]`を開き、`[role=option]`の「新バージョン」を`click()`してから、ダイアログ内の
+「デプロイ」ボタンを押すと確実にバージョンが上がった。(3) 外部URLのlocalhostはPNA/CSPでエディタから
+fetchできない。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）

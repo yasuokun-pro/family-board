@@ -104,6 +104,16 @@
   <div class="modal-box">
     <h2 id="ae-heading">予定を追加</h2>
 
+    <div class="fld scope-fld" id="ae-scope-fld" hidden>
+      <span>繰り返しの予定です。どこまで変更しますか？</span>
+      <div class="am-picks am-picks-one" id="ae-scope" style="--n:3">
+        <button type="button" class="am-pick sel" data-scope="this">この日だけ</button>
+        <button type="button" class="am-pick" data-scope="following">これ以降すべて</button>
+        <button type="button" class="am-pick" data-scope="all">すべて</button>
+      </div>
+      <small id="ae-scope-note"></small>
+    </div>
+
     <div class="fld">
       <span>誰の予定？</span>
       <div class="am-picks am-picks-one" id="ae-members"></div>

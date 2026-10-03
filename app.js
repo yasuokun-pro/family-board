@@ -2024,6 +2024,7 @@ function openAddEvent() {
   $('ae-save').disabled = false;
   $('ae-delete').disabled = false;
   $('ae-msg').textContent = '';
+  setScopeUi(false);
   $('ae-title').value = '';
   $('ae-location').value = '';
   $('ae-memo').value = '';
@@ -2043,10 +2044,10 @@ function openEditEvent(ev) {
   $('ae-heading').textContent = '予定を編集';
   $('ae-save').textContent = '更新';
   $('ae-delete').hidden = false;
-  /* 繰り返し予定はカレンダー側で1件だけ直せず、全体が壊れるので、ボードからは触らせない */
-  $('ae-save').disabled = !!ev.recurring;
-  $('ae-delete').disabled = !!ev.recurring;
-  $('ae-msg').textContent = ev.recurring ? '繰り返し予定はボードから変更できません。Googleカレンダーで直してください' : '';
+  $('ae-save').disabled = false;
+  $('ae-delete').disabled = false;
+  $('ae-msg').textContent = '';
+  setScopeUi(!!ev.recurring);
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
   $('ae-memo').value = ev.memo || '';
@@ -2060,9 +2061,51 @@ function openEditEvent(ev) {
   $('modal-add').hidden = false;
 }
 
+/* 繰り返し予定の編集範囲（この日だけ／これ以降すべて／すべて）。
+   サーバー(GAS)はこの範囲をbody.scopeで受け取り、Calendar高度サービスで処理する。
+   「これ以降すべて」「すべて」は曜日指定などの繰り返しルールとずれないよう日付を
+   動かさない仕様なので、日付欄を無効にする（日付を変えるなら「この日だけ」）。 */
+var SCOPE_LABELS = { 'this': 'この日だけ', 'following': 'これ以降すべて', 'all': 'すべて' };
+var SCOPE_NOTES = {
+  'this': 'この回だけを変更します（ほかの回はそのまま）。日付も変えられます。',
+  'following': 'この回以降の繰り返しをまとめて変更します。日付は変えられません。',
+  'all': '繰り返しのすべての回を変更します。日付は変えられません。'
+};
+function currentScope() {
+  var sel = $('ae-scope').querySelector('.am-pick.sel');
+  return sel ? sel.getAttribute('data-scope') : 'this';
+}
+function applyScopeUi() {
+  var scope = currentScope();
+  var picks = $('ae-scope').querySelectorAll('.am-pick');
+  for (var i = 0; i < picks.length; i++) {
+    picks[i].classList.toggle('sel', picks[i].getAttribute('data-scope') === scope);
+  }
+  $('ae-scope-note').textContent = SCOPE_NOTES[scope];
+  $('ae-date').disabled = !$('ae-scope-fld').hidden && scope !== 'this';
+}
+function setScopeUi(show) {
+  $('ae-scope-fld').hidden = !show;
+  var picks = $('ae-scope').querySelectorAll('.am-pick');
+  for (var i = 0; i < picks.length; i++) {
+    picks[i].classList.toggle('sel', picks[i].getAttribute('data-scope') === 'this');
+  }
+  applyScopeUi();
+}
+function initScopePicker() {
+  $('ae-scope').addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.am-pick');
+    if (!btn) return;
+    var picks = $('ae-scope').querySelectorAll('.am-pick');
+    for (var i = 0; i < picks.length; i++) picks[i].classList.toggle('sel', picks[i] === btn);
+    applyScopeUi();
+  });
+}
+
 function closeAddEvent() {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   STATE.editingEvent = null;
+  setScopeUi(false);
   $('modal-add').hidden = true;
   $('modal-add').scrollTop = 0;
   window.scrollTo(0, 0);
@@ -2108,6 +2151,7 @@ function submitAddEvent() {
     payload.action = 'update';
     payload.id = STATE.editingEvent.id;
     payload.calId = STATE.editingEvent.calId;
+    if (STATE.editingEvent.recurring) payload.scope = currentScope();
   }
 
   // GAS側の書き込みは数秒かかることがあるので、待たせずにその日の
@@ -2134,10 +2178,15 @@ function submitAddEvent() {
 
 function deleteCurrentEvent() {
   if (!STATE.editingEvent) return;
-  if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title)) return;
+  var recurring = !!STATE.editingEvent.recurring;
+  var scope = recurring ? currentScope() : '';
+  if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title +
+                      (recurring ? '\n（繰り返し：' + SCOPE_LABELS[scope] + '）' : ''))) return;
 
   var id = STATE.editingEvent.id;
   var calId = STATE.editingEvent.calId;
+  var delBody = { action: 'delete', id: id, calId: calId };
+  if (recurring) delBody.scope = scope;
 
   closeAddEvent();
   setSyncStatus('削除中…', 'saving');
@@ -2145,7 +2194,7 @@ function deleteCurrentEvent() {
   fetch(CFG.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'delete', id: id, calId: calId })
+    body: JSON.stringify(delBody)
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -2341,6 +2390,7 @@ function init() {
   $('ae-delete').addEventListener('click', deleteCurrentEvent);
   initAddMemberPicker();
   initEscortPickers();
+  initScopePicker();
   initTimeFlyout();
   initAgendaTap();
   initMonthDetailTap();
