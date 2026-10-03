@@ -113,8 +113,10 @@ function doGet(e) {
 
    id/calId は doGet が返す予定データの id/calId をそのまま返すこと。
    --------------------------------------------------------------------- */
-/* 繰り返し予定は、このコードを使うボードからは変更できない（本番データでシリーズごと消えることを確認）。 */
-var RECURRING_MSG = '繰り返し予定はボードから変更できません。Googleカレンダーで直してください';
+/* 繰り返し予定は、CalendarAppのsetTime/deleteEventを呼ぶとシリーズ全体が動く/消える
+   （本番データで確認済み）ため、CalendarAppでは触らない。代わりにCalendar高度サービス
+   （Calendar.Events.*）で、body.scope = 'this'(この回だけ) / 'following'(これ以降すべて) /
+   'all'(すべて) に応じて安全に変更する。下の「繰り返し予定の編集・削除」参照。 */
 
 function doPost(e) {
   try {
@@ -128,7 +130,10 @@ function doPost(e) {
       if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
       var target = findRawEvent(body.id, body.calId);
       if (!target) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
-      if (target.isRecurringEvent()) return json({ ok: false, error: RECURRING_MSG });
+      if (target.isRecurringEvent()) {
+        deleteRecurring(target, body.calId, body.scope);
+        return json({ ok: true });
+      }
       target.deleteEvent();
       return json({ ok: true });
     }
@@ -141,7 +146,10 @@ function doPost(e) {
       if (!body.id) return json({ ok: false, error: 'idが指定されていません' });
       var old = findRawEvent(body.id, body.calId);
       if (!old) return json({ ok: false, error: '予定が見つかりません（既に削除された可能性があります）' });
-      if (old.isRecurringEvent()) return json({ ok: false, error: RECURRING_MSG });
+      if (old.isRecurringEvent()) {
+        updateRecurring(old, body.calId, fields, body.scope);
+        return json({ ok: true });
+      }
       var updated = updateEventInPlace(old, fields);
       return json({ ok: true, id: updated.getId() });
     }
@@ -177,7 +185,10 @@ function buildEventFields(body) {
     fullTitle: fullTitle,
     location: body.location || '',
     description: body.description || '',
-    allDay: !!body.allDay
+    allDay: !!body.allDay,
+    dateStr: body.date,
+    startHm: body.startTime || '',
+    endHm: body.endTime || ''
   };
 
   if (f.allDay) {
@@ -221,6 +232,220 @@ function updateEventInPlace(ev, f) {
     ev.setTime(f.start, f.end);
   }
   return ev;
+}
+
+/* =====================================================================
+   繰り返し予定の編集・削除（Calendar高度サービス = Calendar.Events.*）
+
+   ★事前準備: Apps Scriptエディタの「サービス ＋」→「Google Calendar API」(v3)を
+     追加しておくこと（識別子は Calendar のまま）。無料。
+   ★CalendarApp の getId() は iCalUID を返し、API の event id とは別物。
+     そのため Calendar.Events.list({iCalUID}) で元の予定(master)を引き、
+     Calendar.Events.instances() で「この回」(instance)を開始時刻で特定する。
+
+   scope:
+     'this'      … この回だけ（instance を patch / remove。例外として個別に変わる）
+     'all'       … すべて（master を patch / remove。日付は動かさず内容と時刻だけ変える）
+     'following' … これ以降すべて（master を前日で打ち切り、この回からの新しい繰り返しを作る。
+                   最初の回なら master をそのまま変更/削除。日付は動かさない）
+   ===================================================================== */
+var DAY_MS = 86400000;
+
+function requireCalendarApi() {
+  if (typeof Calendar === 'undefined' || !Calendar.Events) {
+    throw new Error('Calendar高度サービスが有効になっていません（Apps Scriptの「サービス」でGoogle Calendar APIを追加してください）');
+  }
+}
+
+function checkScope(scope) {
+  if (scope !== 'this' && scope !== 'following' && scope !== 'all') {
+    throw new Error('繰り返し予定は変更する範囲（この日だけ／これ以降すべて／すべて）を選んでください');
+  }
+}
+
+function ymdStr(d) {
+  return Utilities.formatDate(d, CONFIG.timeZone, 'yyyy-MM-dd');
+}
+
+/* APIの予定が始まるミリ秒（終日は日付の0時） */
+function startMsOf(item) {
+  if (item.start && item.start.dateTime) return new Date(item.start.dateTime).getTime();
+  return parseYmd(item.start.date).getTime();
+}
+
+/* APIの予定が始まる日（yyyy-MM-dd） */
+function startDateOf(item) {
+  if (item.start && item.start.dateTime) return ymdStr(new Date(item.start.dateTime));
+  return item.start.date;
+}
+
+/* CalendarAppのインスタンスevから、API上のmasterとinstanceを引き当てる */
+function resolveRecurring(ev, calId) {
+  requireCalendarApi();
+  if (!calId) throw new Error('calIdが指定されていません');
+
+  var listed = Calendar.Events.list(calId, { iCalUID: ev.getId(), showDeleted: false, maxResults: 50 });
+  var master = null;
+  var items = (listed && listed.items) || [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].recurrence && items[i].recurrence.length) { master = items[i]; break; }
+  }
+  if (!master) throw new Error('繰り返しの元の予定が見つかりません');
+
+  var allDay = ev.isAllDayEvent();
+  var startMs = ev.getStartTime().getTime();
+  var targetDate = allDay ? ymdStr(ev.getAllDayStartDate()) : '';
+  var insts = Calendar.Events.instances(calId, master.id, {
+    timeMin: new Date(startMs - 2 * DAY_MS).toISOString(),
+    timeMax: new Date(startMs + 3 * DAY_MS).toISOString(),
+    showDeleted: false,
+    maxResults: 50
+  });
+  var inst = null;
+  var arr = (insts && insts.items) || [];
+  for (var j = 0; j < arr.length; j++) {
+    var hit = allDay ? (arr[j].start.date === targetDate) : (startMsOf(arr[j]) === startMs);
+    if (hit) { inst = arr[j]; break; }
+  }
+  if (!inst) throw new Error('繰り返しのこの回が見つかりません（既に変更または削除された可能性があります）');
+
+  return { master: master, inst: inst, allDay: allDay };
+}
+
+function rruleIndex(rec) {
+  for (var i = 0; i < rec.length; i++) {
+    if (/^RRULE:/i.test(rec[i])) return i;
+  }
+  return -1;
+}
+function rruleParts(line) {
+  return line.replace(/^RRULE:/i, '').split(';').filter(function (p) { return p; });
+}
+function partsWithout(parts, names) {
+  return parts.filter(function (p) { return names.indexOf(p.split('=')[0].toUpperCase()) < 0; });
+}
+function partValue(parts, name) {
+  for (var i = 0; i < parts.length; i++) {
+    var kv = parts[i].split('=');
+    if (kv[0].toUpperCase() === name) return kv.slice(1).join('=');
+  }
+  return null;
+}
+
+/* masterを「この回の直前まで」で打ち切った繰り返しルール（RRULEのUNTILに置き換え、COUNTは外す） */
+function truncatedRecurrence(master, instItem) {
+  var rec = master.recurrence.slice();
+  var idx = rruleIndex(rec);
+  if (idx < 0) throw new Error('繰り返しルールが読み取れません');
+  var parts = partsWithout(rruleParts(rec[idx]), ['UNTIL', 'COUNT']);
+  var until;
+  if (instItem.start.dateTime) {
+    until = Utilities.formatDate(new Date(startMsOf(instItem) - 1000), 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+  } else {
+    var prev = parseYmd(instItem.start.date);
+    prev.setDate(prev.getDate() - 1);
+    until = Utilities.formatDate(prev, CONFIG.timeZone, 'yyyyMMdd');
+  }
+  parts.push('UNTIL=' + until);
+  rec[idx] = 'RRULE:' + parts.join(';');
+  return rec;
+}
+
+/* 「これ以降」の新しい繰り返しルール。回数指定(COUNT)の場合は、すでに過ぎた回を引いた残りにする。
+   EXDATE等は元のシリーズ基準なので引き継がない。 */
+function followingRecurrence(master, instItem, calId) {
+  var idx = rruleIndex(master.recurrence);
+  if (idx < 0) throw new Error('繰り返しルールが読み取れません');
+  var parts = rruleParts(master.recurrence[idx]);
+  var count = partValue(parts, 'COUNT');
+  if (count !== null) {
+    var before = Calendar.Events.instances(calId, master.id, {
+      timeMax: new Date(startMsOf(instItem)).toISOString(),
+      showDeleted: false,
+      maxResults: 2500
+    });
+    var done = ((before && before.items) || []).length;
+    var remain = Math.max(1, parseInt(count, 10) - done);
+    parts = partsWithout(parts, ['COUNT']);
+    parts.push('COUNT=' + remain);
+  }
+  return ['RRULE:' + parts.join(';')];
+}
+
+/* フォームの内容をAPI用の start/end に直す。patchのときは、終日⇔時刻ありの切り替えで
+   古い方を消せるよう null を入れる。insertのときは null を入れない。 */
+function apiTimes(f, dateStr, forInsert) {
+  var tz = CONFIG.timeZone;
+  var out = {};
+  if (f.allDay) {
+    var d = parseYmd(dateStr);
+    var e = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    out.start = { date: ymdStr(d) };
+    out.end = { date: ymdStr(e) };
+    if (!forInsert) { out.start.dateTime = null; out.end.dateTime = null; }
+  } else {
+    out.start = { dateTime: fmt(parseYmdHm(dateStr, f.startHm)), timeZone: tz };
+    out.end = { dateTime: fmt(parseYmdHm(dateStr, f.endHm)), timeZone: tz };
+    if (!forInsert) { out.start.date = null; out.end.date = null; }
+  }
+  return out;
+}
+
+function withTimes(base, times) {
+  base.start = times.start;
+  base.end = times.end;
+  return base;
+}
+
+function updateRecurring(ev, calId, f, scope) {
+  checkScope(scope);
+  if (ev.getOriginalCalendarId() !== f.calId) {
+    throw new Error('繰り返し予定は、別のカレンダーへ移すような変更はできません');
+  }
+  var r = resolveRecurring(ev, calId);
+  var master = r.master;
+  var inst = r.inst;
+  var common = function () { return { summary: f.fullTitle, location: f.location, description: f.description }; };
+  var isFirst = startMsOf(master) === startMsOf(inst);
+
+  if (scope === 'this') {
+    Calendar.Events.patch(withTimes(common(), apiTimes(f, f.dateStr, false)), calId, inst.id);
+    return;
+  }
+
+  // 'all' / 'following' は日付を動かさない（曜日指定などの繰り返しルールとずれるため）。
+  // 日付を変えたいときは 'this'（この日だけ）で行う。内容と「時刻」だけを反映する。
+  if (scope === 'all' || isFirst) {
+    Calendar.Events.patch(withTimes(common(), apiTimes(f, startDateOf(master), false)), calId, master.id);
+    return;
+  }
+
+  // following（2回目以降）：この回からの新しい繰り返しを作り、元は前日で打ち切る
+  var fresh = withTimes(common(), apiTimes(f, startDateOf(inst), true));
+  fresh.recurrence = followingRecurrence(master, inst, calId);
+  if (master.colorId) fresh.colorId = master.colorId;
+  if (master.reminders) fresh.reminders = master.reminders;
+  var created = Calendar.Events.insert(fresh, calId);
+  try {
+    Calendar.Events.patch({ recurrence: truncatedRecurrence(master, inst) }, calId, master.id);
+  } catch (err) {
+    try { Calendar.Events.remove(calId, created.id); } catch (e2) {}
+    throw err;
+  }
+}
+
+function deleteRecurring(ev, calId, scope) {
+  checkScope(scope);
+  var r = resolveRecurring(ev, calId);
+  if (scope === 'this') {
+    Calendar.Events.remove(calId, r.inst.id);
+    return;
+  }
+  if (scope === 'all' || startMsOf(r.master) === startMsOf(r.inst)) {
+    Calendar.Events.remove(calId, r.master.id);
+    return;
+  }
+  Calendar.Events.patch({ recurrence: truncatedRecurrence(r.master, r.inst) }, calId, r.master.id);
 }
 
 /* doGetが返す複合id("実イベントID@開始時刻ms")とcalIdから、
