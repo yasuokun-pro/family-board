@@ -340,7 +340,10 @@ function truncatedRecurrence(master, instItem) {
   var parts = partsWithout(rruleParts(rec[idx]), ['UNTIL', 'COUNT']);
   var until;
   if (instItem.start.dateTime) {
-    until = Utilities.formatDate(new Date(startMsOf(instItem) - 1000), 'UTC', "yyyyMMdd'T'HHmmss'Z'");
+    // この回の「開始時刻」ではなく「その日の0時の1秒前」で打ち切る。開始時刻にすると、
+    // 後から「すべて」で時刻を動かしたときに、打ち切ったはずの回が復活してしまう（実測）。
+    var dayStart = parseYmd(startDateOf(instItem));
+    until = Utilities.formatDate(new Date(dayStart.getTime() - 1000), 'UTC', "yyyyMMdd'T'HHmmss'Z'");
   } else {
     var prev = parseYmd(instItem.start.date);
     prev.setDate(prev.getDate() - 1);
