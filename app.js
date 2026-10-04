@@ -531,6 +531,7 @@ var STATE = {
   monthSelectedKey: null,  // 月間一覧でタップして選んだ日("YYYY-MM-DD")。もう一度タップでその日に移動
   lastFetch: 0,
   lastTouch: Date.now(),
+  autoTomorrow: false,   // 常時表示モードで自動的に明日を出しているか
   fetching: false
 };
 
@@ -1101,6 +1102,81 @@ function agendaTimeHtml(ev) {
   return hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>';
 }
 
+/* 見出し（日付・今日/明日・件数）。明日を表示しているときは、今日と見間違えないよう
+   「明日」のバッジ・オレンジの日付・画面の縁取り(body.view-tomorrow)で強調する。 */
+function renderDayTitle(day, today, dayEvents) {
+  var diff = Math.round((day - today) / 86400000);
+  var label = diff === 0 ? '今日' : diff === 1 ? '明日' : diff === -1 ? '昨日' : '';
+  var dateStr = (day.getMonth() + 1) + '/' + day.getDate() + '（' + DOW[day.getDay()] + '）';
+  var el = $('board-date');
+  if (diff === 1) {
+    el.innerHTML = '<span class="day-chip">明日</span><span class="day-date">' + dateStr + '</span>';
+  } else {
+    el.textContent = dateStr + (label ? ' ' + label : '');
+  }
+  document.body.classList.toggle('view-tomorrow', diff === 1 && !STATE.monthMode);
+
+  var hol = STATE.holidays[ymd(day)];
+  var count = dayEvents.length + ' 件';
+  var sub;
+  if (diff === 1) {
+    var parts = [];
+    if (hol) parts.push(hol);
+    if (todayFinished(new Date())) parts.push('今日の予定は終了');
+    parts.push(count);
+    sub = parts.join('・');
+  } else {
+    sub = hol ? hol : count;
+  }
+  $('board-sub').textContent = sub;
+}
+
+/* 今日の予定がすべて終わったか。時刻つきの予定の最後の終了時刻を過ぎたら true。
+   終日の予定は数えない。時刻つきの予定が1件もない日は、夕方(KIOSK_EMPTY_DAY_HOUR時)から true。 */
+var KIOSK_EMPTY_DAY_HOUR = 18;
+function todayFinished(now) {
+  var s = startOfDay(now);
+  var endOfDay = addDays(s, 1).getTime();
+  var timed = eventsOn(s).filter(function (e) { return !e.allDay; });
+  if (!timed.length) return now.getHours() >= KIOSK_EMPTY_DAY_HOUR;
+  var last = 0;
+  for (var i = 0; i < timed.length; i++) {
+    var t = Math.min(timed[i].end.getTime(), endOfDay);
+    if (t > last) last = t;
+  }
+  return now.getTime() >= last;
+}
+
+/* 操作が止まっているときの自動切り替え（30秒おきに判定）。
+   ・常時表示モードで今日の予定がすべて終わったら、1分操作が無ければ明日の予定を表示する
+     （明日を自動で出した後に今日の予定が増えたら、今日へ戻す）。
+   ・操作が5分止まったら、今日（常時表示モードで今日が終わっていれば明日）の1日表示へ戻す。 */
+function autoDayTick() {
+  var now = new Date();
+  var today = startOfDay(now);
+  var tomorrow = addDays(today, 1);
+  var idleMs = Date.now() - STATE.lastTouch;
+  var viewKey = ymd(STATE.viewDate);
+  var finished = !!CFG.kiosk && todayFinished(now);
+
+  if (!STATE.monthMode && idleMs > 60000) {
+    if (finished && viewKey === ymd(today)) {
+      STATE.viewDate = tomorrow; STATE.autoTomorrow = true; renderAll(); return;
+    }
+    if (!finished && STATE.autoTomorrow && viewKey === ymd(tomorrow)) {
+      STATE.viewDate = today; STATE.autoTomorrow = false; renderAll(); return;
+    }
+  }
+  if (viewKey !== ymd(tomorrow)) STATE.autoTomorrow = false;
+
+  var target = finished ? tomorrow : today;
+  if (idleMs > 5 * 60000 && (STATE.monthMode || viewKey !== ymd(target))) {
+    STATE.viewDate = target;
+    STATE.autoTomorrow = finished;
+    if (STATE.monthMode) { setMonthMode(false); } else { renderAll(); }
+  }
+}
+
 function renderBoard() {
   var day = STATE.viewDate;
   var today = startOfDay(new Date());
@@ -1114,11 +1190,7 @@ function renderBoard() {
   document.documentElement.style.setProperty('--lane-count', lanes.length);
 
   /* --- 見出し --- */
-  var diff = Math.round((day - today) / 86400000);
-  var label = diff === 0 ? '今日' : diff === 1 ? '明日' : diff === -1 ? '昨日' : '';
-  $('board-date').textContent = (day.getMonth() + 1) + '/' + day.getDate() + '（' + DOW[day.getDay()] + '）' + (label ? ' ' + label : '');
-  var hol = STATE.holidays[ymd(day)];
-  $('board-sub').textContent = hol ? hol : (dayEvents.length + ' 件');
+  renderDayTitle(day, today, dayEvents);
 
   var headHtml = '<div></div>';
   for (var i = 0; i < lanes.length; i++) {
@@ -1453,11 +1525,7 @@ function renderAgenda() {
     return a.start - b.start;
   });
 
-  var diff = Math.round((day - today) / 86400000);
-  var label = diff === 0 ? '今日' : diff === 1 ? '明日' : diff === -1 ? '昨日' : '';
-  $('board-date').textContent = (day.getMonth() + 1) + '/' + day.getDate() + '（' + DOW[day.getDay()] + '）' + (label ? ' ' + label : '');
-  var hol = STATE.holidays[ymd(day)];
-  $('board-sub').textContent = hol ? hol : (dayEvents.length + ' 件');
+  renderDayTitle(day, today, dayEvents);
 
   var order = memberList().concat([SHARED]);
   var html = '';
@@ -1589,6 +1657,7 @@ function initMonthDetailTap() {
 
 function renderAll() {
   if (STATE.monthMode) {
+    document.body.classList.remove('view-tomorrow');
     renderMonthView();
   } else if (isPortrait()) {
     renderAgenda();
@@ -2486,15 +2555,7 @@ function init() {
   // Wake Lockが無音のうちに解放されていた場合の保険で、数分おきに取り直す
   setInterval(function () { if (!wakeLockObj) keepAwake(); }, 3 * 60000);
 
-  // 操作が5分止まったら自動的に今日(1日表示)へ戻す
-  setInterval(function () {
-    var idle = Date.now() - STATE.lastTouch > 5 * 60000;
-    var notToday = ymd(STATE.viewDate) !== ymd(new Date());
-    if (idle && (STATE.monthMode || notToday)) {
-      STATE.viewDate = startOfDay(new Date());
-      if (STATE.monthMode) { setMonthMode(false); } else { renderAll(); }
-    }
-  }, 30000);
+  setInterval(autoDayTick, 30000);
 
   window.addEventListener('resize', function () { sizeHours(); sizeSchoolCol(); updateNowLine(); });
   window.addEventListener('orientationchange', function () { setTimeout(renderAll, 300); });

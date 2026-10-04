@@ -41,6 +41,7 @@ html, body {
 }
 
 #shift {
+  position: relative;
   height: 100%;
   display: flex;
   transition: transform 2s linear;   /* 焼き付き防止のドリフト */
@@ -1558,3 +1559,27 @@ body.kiosk-mode.controls-visible .board-tools {
 .rp-count-row .rp-input { width: 6em; }
 .rp-count-row span { color: var(--muted); }
 .rp-msg { min-height: 1.2em; font-size: 13px; color: #FF8080; margin-top: 4px; }
+
+/* --- 明日の予定を表示しているとき（常時表示モードで今日が終わった後など） ---
+   今日の画面と見間違えないよう、「明日」バッジ・大きなオレンジの日付・画面の縁取りで強調する。 */
+:root { --tomorrow: #FF9A3D; }
+.day-chip {
+  display: inline-block;
+  padding: 0.05em 0.6em;
+  border-radius: 999px;
+  background: var(--tomorrow);
+  color: #1A0F02;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.day-date { color: var(--tomorrow); font-weight: 800; font-size: 1.25em; }
+body.view-tomorrow .board-sub { color: var(--tomorrow); }
+body.view-tomorrow #shift::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: max(0.7vh, 5px) solid var(--tomorrow);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 50;
+}
