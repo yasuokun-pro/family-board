@@ -1503,3 +1503,58 @@ body.kiosk-mode.controls-visible .board-tools {
   font-size: 0.95rem;
   padding: 3rem 0;
 }
+
+/* --- 繰り返しの設定 --- */
+.chk-row { display: flex; align-items: center; gap: 3vh; margin-bottom: 2vh; }
+.chk-row .chk { margin-bottom: 0; }
+.chk[hidden] { display: none; }
+.repeat-summary {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: -1vh 0 2vh;
+  padding: 10px 12px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.repeat-summary::after { content: '  ›'; color: var(--muted); }
+.repeat-summary:active { background: var(--line-soft); }
+.repeat-summary[hidden] { display: none; }
+.repeat-panel [hidden] { display: none !important; }
+.repeat-panel .fld { margin-bottom: 1.4vh; }
+.repeat-panel .fld > span { font-size: 13px; }
+.repeat-panel .am-picks-one .am-pick { padding: 11px 0; font-size: 14px; }
+.rp-monthdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 4px; }
+.rp-monthdays .am-pick {
+  --c: #5C9BEA;
+  padding: 9px 0;
+  font-size: 14px;
+  border-radius: 8px;
+  border-width: 1px;
+  border-color: var(--line);
+  color: var(--text);
+}
+.rp-monthdays .am-pick.sel { border-color: var(--c); color: #0B0F14; }
+.rp-monthdays .am-pick.rp-last { grid-column: span 2; }
+.rp-input {
+  margin-top: 8px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rp-count-row { display: flex; align-items: center; gap: 8px; }
+.rp-count-row .rp-input { width: 6em; }
+.rp-count-row span { color: var(--muted); }
+.rp-msg { min-height: 1.2em; font-size: 13px; color: #FF8080; margin-top: 4px; }

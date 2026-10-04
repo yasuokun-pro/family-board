@@ -2025,6 +2025,7 @@ function openAddEvent() {
   $('ae-delete').disabled = false;
   $('ae-msg').textContent = '';
   setScopeUi(false);
+  resetRepeatUi(true);
   $('ae-title').value = '';
   $('ae-location').value = '';
   $('ae-memo').value = '';
@@ -2048,6 +2049,7 @@ function openEditEvent(ev) {
   $('ae-delete').disabled = false;
   $('ae-msg').textContent = '';
   setScopeUi(!!ev.recurring);
+  resetRepeatUi(!ev.recurring);
   $('ae-title').value = ev.title;
   $('ae-location').value = ev.location || '';
   $('ae-memo').value = ev.memo || '';
@@ -2102,10 +2104,163 @@ function initScopePicker() {
   });
 }
 
+/* ------------------------------------------------------------------
+   繰り返しの設定（新規追加・単発予定の編集で使う）。
+   「繰り返し」にチェック→設定パネル(#repeat-flyout)が出る→「設定」で消えて、
+   チェック欄の下に要約が出る（タップすると再編集）。
+   STATE.repeat = null(繰り返さない) | { freq:'daily'|'weekly'|'monthly', days:[0-6],
+     monthday:1-31|-1(月末), end:'none'|'until'|'count', until:'yyyy-MM-dd', count:n }
+   RP は編集中の下書き。「設定」で検証してSTATE.repeatへ反映する。
+   ★パネル内のボタンはinnerHTMLを作り直さず.selの付け外しだけにすること
+     （タップされた要素がDOMから消えると、外側タップ判定で閉じてしまう）。
+   ------------------------------------------------------------------ */
+var REPEAT_DAY_NAMES = ['日', '月', '火', '水', '木', '金', '土'];
+var REPEAT_DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+STATE.repeat = null;
+var RP = null;
+
+function defaultRepeat() {
+  var v = $('ae-date').value;
+  var d = v ? new Date(v + 'T00:00:00') : new Date();
+  return { freq: 'weekly', days: [d.getDay()], monthday: d.getDate(), end: 'none', until: '', count: 10 };
+}
+function cloneRepeat(r) {
+  return { freq: r.freq, days: r.days.slice(), monthday: r.monthday, end: r.end, until: r.until, count: r.count };
+}
+function repeatSummaryText(r) {
+  var t;
+  if (r.freq === 'daily') t = '毎日';
+  else if (r.freq === 'weekly') {
+    var names = [];
+    for (var i = 0; i < 7; i++) if (r.days.indexOf(i) >= 0) names.push(REPEAT_DAY_NAMES[i]);
+    t = '毎週 ' + names.join('・') + '曜日';
+  } else {
+    t = r.monthday === -1 ? '毎月 月末' : '毎月 ' + r.monthday + '日';
+  }
+  if (r.end === 'until' && r.until) t += '（' + r.until.replace(/-/g, '/') + 'まで）';
+  else if (r.end === 'count') t += '（' + r.count + '回）';
+  return t;
+}
+function renderRepeatSummary() {
+  var el = $('ae-repeat-summary');
+  if (STATE.repeat) {
+    el.textContent = '繰り返し：' + repeatSummaryText(STATE.repeat);
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+    el.textContent = '';
+  }
+}
+function paintRepeatFlyout() {
+  var f = $('rp-freq').querySelectorAll('.am-pick');
+  for (var i = 0; i < f.length; i++) f[i].classList.toggle('sel', f[i].getAttribute('data-freq') === RP.freq);
+  var d = $('rp-days').querySelectorAll('.am-pick');
+  for (var j = 0; j < d.length; j++) d[j].classList.toggle('sel', RP.days.indexOf(parseInt(d[j].getAttribute('data-day'), 10)) >= 0);
+  var m = $('rp-monthdays').querySelectorAll('.am-pick');
+  for (var k = 0; k < m.length; k++) m[k].classList.toggle('sel', parseInt(m[k].getAttribute('data-md'), 10) === RP.monthday);
+  var e = $('rp-end').querySelectorAll('.am-pick');
+  for (var n = 0; n < e.length; n++) e[n].classList.toggle('sel', e[n].getAttribute('data-end') === RP.end);
+  $('rp-weekly').hidden = RP.freq !== 'weekly';
+  $('rp-monthly').hidden = RP.freq !== 'monthly';
+  $('rp-until').hidden = RP.end !== 'until';
+  $('rp-count-row').hidden = RP.end !== 'count';
+  $('rp-until').value = RP.until;
+  $('rp-count').value = RP.count;
+  $('rp-msg').textContent = '';
+}
+function openRepeatFlyout() {
+  RP = cloneRepeat(STATE.repeat || defaultRepeat());
+  closeTimeFlyout();
+  closeSchoolTable();
+  closeMemberSchedule();
+  closeEventDetail();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  paintRepeatFlyout();
+  $('repeat-flyout').hidden = false;
+}
+/* ×・外側タップ：下書きを捨てて閉じる。まだ一度も「設定」していなければ、
+   チェックも外す（設定されていないのに「繰り返し」になっている状態を避ける）。 */
+function cancelRepeatFlyout() {
+  $('repeat-flyout').hidden = true;
+  if (!STATE.repeat) $('ae-repeat').checked = false;
+}
+function commitRepeatFlyout() {
+  RP.until = $('rp-until').value;
+  var c = parseInt($('rp-count').value, 10);
+  RP.count = isNaN(c) ? 0 : c;
+  if (RP.freq === 'weekly' && !RP.days.length) { $('rp-msg').textContent = '曜日を1つ以上選んでください'; return; }
+  if (RP.freq === 'monthly' && !RP.monthday) { $('rp-msg').textContent = '毎月の日にちを選んでください'; return; }
+  if (RP.end === 'until') {
+    if (!RP.until) { $('rp-msg').textContent = '終了する日付を入れてください'; return; }
+    if ($('ae-date').value && RP.until < $('ae-date').value) { $('rp-msg').textContent = '終了日は開始日より後にしてください'; return; }
+  }
+  if (RP.end === 'count' && !(RP.count >= 1 && RP.count <= 730)) { $('rp-msg').textContent = '回数は1〜730で入れてください'; return; }
+  STATE.repeat = cloneRepeat(RP);
+  $('repeat-flyout').hidden = true;
+  renderRepeatSummary();
+}
+function resetRepeatUi(showCheckbox) {
+  STATE.repeat = null;
+  $('repeat-flyout').hidden = true;
+  $('ae-repeat').checked = false;
+  $('ae-repeat-label').hidden = !showCheckbox;
+  renderRepeatSummary();
+}
+function repeatPayload() {
+  var r = STATE.repeat;
+  if (!r) return null;
+  var out = { freq: r.freq };
+  if (r.freq === 'weekly') {
+    out.byday = [];
+    for (var i = 0; i < 7; i++) if (r.days.indexOf(i) >= 0) out.byday.push(REPEAT_DAY_CODES[i]);
+  }
+  if (r.freq === 'monthly') out.bymonthday = r.monthday;
+  if (r.end === 'count') out.count = r.count;
+  if (r.end === 'until') out.until = r.until;
+  return out;
+}
+function initRepeatPicker() {
+  var md = '';
+  for (var i = 1; i <= 31; i++) md += '<button type="button" class="am-pick" data-md="' + i + '">' + i + '</button>';
+  md += '<button type="button" class="am-pick rp-last" data-md="-1">月末</button>';
+  $('rp-monthdays').innerHTML = md;
+
+  $('ae-repeat').addEventListener('change', function () {
+    if (this.checked) openRepeatFlyout();
+    else { STATE.repeat = null; $('repeat-flyout').hidden = true; renderRepeatSummary(); }
+  });
+  $('ae-repeat-summary').addEventListener('click', function (ev) { ev.stopPropagation(); openRepeatFlyout(); });
+  $('repeat-close').addEventListener('click', cancelRepeatFlyout);
+  $('repeat-done').addEventListener('click', commitRepeatFlyout);
+
+  $('rp-freq').addEventListener('click', function (ev) {
+    var b = ev.target.closest('.am-pick'); if (!b) return;
+    RP.freq = b.getAttribute('data-freq'); paintRepeatFlyout();
+  });
+  $('rp-days').addEventListener('click', function (ev) {
+    var b = ev.target.closest('.am-pick'); if (!b) return;
+    var day = parseInt(b.getAttribute('data-day'), 10);
+    var at = RP.days.indexOf(day);
+    if (at >= 0) RP.days.splice(at, 1); else RP.days.push(day);
+    paintRepeatFlyout();
+  });
+  $('rp-monthdays').addEventListener('click', function (ev) {
+    var b = ev.target.closest('.am-pick'); if (!b) return;
+    RP.monthday = parseInt(b.getAttribute('data-md'), 10); paintRepeatFlyout();
+  });
+  $('rp-end').addEventListener('click', function (ev) {
+    var b = ev.target.closest('.am-pick'); if (!b) return;
+    RP.until = $('rp-until').value;
+    var c = parseInt($('rp-count').value, 10); RP.count = isNaN(c) ? RP.count : c;
+    RP.end = b.getAttribute('data-end'); paintRepeatFlyout();
+  });
+}
+
 function closeAddEvent() {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   STATE.editingEvent = null;
   setScopeUi(false);
+  resetRepeatUi(true);
   $('modal-add').hidden = true;
   $('modal-add').scrollTop = 0;
   window.scrollTo(0, 0);
@@ -2122,7 +2277,8 @@ function readAddEventForm() {
     end: $('ae-end').value,
     location: $('ae-location').value.trim(),
     memo: $('ae-memo').value.trim(),
-    escort: readEscortSelections()
+    escort: readEscortSelections(),
+    recurrence: repeatPayload()
   };
 }
 
@@ -2133,6 +2289,7 @@ function validateAddEventForm(f) {
   if (!f.date) return '日付を選んでください';
   if (!f.allDay && (!f.start || !f.end)) return '開始・終了の時刻を入れてください';
   if (!f.allDay && f.start >= f.end) return '終了時刻は開始時刻より後にしてください';
+  if (f.recurrence && f.recurrence.until && f.recurrence.until < f.date) return '繰り返しの終了日は開始日より後にしてください';
   return null;
 }
 
@@ -2146,6 +2303,7 @@ function submitAddEvent() {
     date: f.date, startTime: f.start, endTime: f.end,
     location: f.location, description: buildDescriptionWithEscort(f.memo, f.escort)
   };
+  if (f.recurrence) payload.recurrence = f.recurrence;
   var isUpdate = !!STATE.editingEvent;
   if (isUpdate) {
     payload.action = 'update';
@@ -2391,6 +2549,7 @@ function init() {
   initAddMemberPicker();
   initEscortPickers();
   initScopePicker();
+  initRepeatPicker();
   initTimeFlyout();
   initAgendaTap();
   initMonthDetailTap();
@@ -2444,6 +2603,8 @@ function init() {
     if (!eflyout.hidden && !eflyout.contains(ev.target)) closeEventDetail();
     var tflyout = $('time-flyout');
     if (!tflyout.hidden && !tflyout.contains(ev.target)) closeTimeFlyout();
+    var rflyout = $('repeat-flyout');
+    if (!rflyout.hidden && !rflyout.contains(ev.target)) cancelRepeatFlyout();
   });
 
   // 左右スワイプで日付移動

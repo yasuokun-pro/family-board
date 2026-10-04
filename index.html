@@ -104,16 +104,6 @@
   <div class="modal-box">
     <h2 id="ae-heading">予定を追加</h2>
 
-    <div class="fld scope-fld" id="ae-scope-fld" hidden>
-      <span>繰り返しの予定です。どこまで変更しますか？</span>
-      <div class="am-picks am-picks-one" id="ae-scope" style="--n:3">
-        <button type="button" class="am-pick sel" data-scope="this">この日だけ</button>
-        <button type="button" class="am-pick" data-scope="following">これ以降すべて</button>
-        <button type="button" class="am-pick" data-scope="all">すべて</button>
-      </div>
-      <small id="ae-scope-note"></small>
-    </div>
-
     <div class="fld">
       <span>誰の予定？</span>
       <div class="am-picks am-picks-one" id="ae-members"></div>
@@ -124,10 +114,17 @@
       <input type="text" id="ae-title" placeholder="例: サッカー練習" autocapitalize="off" autocorrect="off">
     </label>
 
-    <label class="chk">
-      <input type="checkbox" id="ae-allday">
-      <span>終日の予定</span>
-    </label>
+    <div class="chk-row">
+      <label class="chk">
+        <input type="checkbox" id="ae-allday">
+        <span>終日の予定</span>
+      </label>
+      <label class="chk" id="ae-repeat-label">
+        <input type="checkbox" id="ae-repeat">
+        <span>繰り返し</span>
+      </label>
+    </div>
+    <button type="button" class="repeat-summary" id="ae-repeat-summary" hidden></button>
 
     <div class="fld-row">
       <label class="fld">
@@ -175,6 +172,16 @@
         <div class="escort-picks" id="ae-escort-accompany"></div>
       </div>
       <small>チェックした人の画面にも、この予定がそのまま表示されます。</small>
+    </div>
+
+    <div class="fld scope-fld" id="ae-scope-fld" hidden>
+      <span>繰り返しの予定です。どこまで変更しますか？</span>
+      <div class="am-picks am-picks-one" id="ae-scope" style="--n:3">
+        <button type="button" class="am-pick sel" data-scope="this">この日だけ</button>
+        <button type="button" class="am-pick" data-scope="following">これ以降すべて</button>
+        <button type="button" class="am-pick" data-scope="all">すべて</button>
+      </div>
+      <small id="ae-scope-note"></small>
     </div>
 
     <div class="modal-actions">
@@ -337,6 +344,54 @@
     </div>
   </div>
   <button type="button" class="btn time-flyout-done" id="time-flyout-done">決定</button>
+ </div>
+</div>
+
+<!-- ============ 繰り返しの設定パネル（「繰り返し」にチェックすると出て、「設定」で消える） ============ -->
+<div class="time-flyout" id="repeat-flyout" hidden>
+ <div class="time-flyout-panel repeat-panel">
+  <div class="school-flyout-head">
+    <h2>繰り返しの設定</h2>
+    <button class="school-flyout-close" id="repeat-close" title="閉じる">×</button>
+  </div>
+  <div class="fld">
+    <span>頻度</span>
+    <div class="am-picks am-picks-one" id="rp-freq" style="--n:3; --c:#5C9BEA">
+      <button type="button" class="am-pick" data-freq="daily">毎日</button>
+      <button type="button" class="am-pick" data-freq="weekly">毎週</button>
+      <button type="button" class="am-pick" data-freq="monthly">毎月</button>
+    </div>
+  </div>
+  <div class="fld" id="rp-weekly">
+    <span>曜日（複数選べます）</span>
+    <div class="am-picks am-picks-one" id="rp-days" style="--n:7; --c:#5C9BEA">
+      <button type="button" class="am-pick" data-day="0">日</button>
+      <button type="button" class="am-pick" data-day="1">月</button>
+      <button type="button" class="am-pick" data-day="2">火</button>
+      <button type="button" class="am-pick" data-day="3">水</button>
+      <button type="button" class="am-pick" data-day="4">木</button>
+      <button type="button" class="am-pick" data-day="5">金</button>
+      <button type="button" class="am-pick" data-day="6">土</button>
+    </div>
+  </div>
+  <div class="fld" id="rp-monthly">
+    <span>毎月の日にち</span>
+    <div class="rp-monthdays" id="rp-monthdays"></div>
+  </div>
+  <div class="fld">
+    <span>終了</span>
+    <div class="am-picks am-picks-one" id="rp-end" style="--n:3; --c:#5C9BEA">
+      <button type="button" class="am-pick" data-end="none">ずっと</button>
+      <button type="button" class="am-pick" data-end="until">日付まで</button>
+      <button type="button" class="am-pick" data-end="count">回数</button>
+    </div>
+    <input type="date" id="rp-until" class="rp-input" hidden>
+    <div class="rp-count-row" id="rp-count-row" hidden>
+      <input type="number" id="rp-count" class="rp-input" min="1" max="730" inputmode="numeric" value="10"> <span>回</span>
+    </div>
+  </div>
+  <div class="rp-msg" id="rp-msg"></div>
+  <button type="button" class="btn time-flyout-done" id="repeat-done">設定</button>
  </div>
 </div>
 
