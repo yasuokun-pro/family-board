@@ -151,9 +151,14 @@ function doPost(e) {
         return json({ ok: true });
       }
       var updated = updateEventInPlace(old, fields);
+      if (fields.rrule) makeRecurring(updated, fields);
       return json({ ok: true, id: updated.getId() });
     }
 
+    if (fields.rrule) {
+      var rec = createRecurringEvent(fields);
+      return json({ ok: true, id: rec.id });
+    }
     var created = createEventInCalendar(fields);
     return json({ ok: true, id: created.getId() });
 
@@ -199,7 +204,101 @@ function buildEventFields(body) {
     f.end = parseYmdHm(body.date, body.endTime);
     if (!(f.end > f.start)) throw new Error('終了時刻は開始時刻より後にしてください');
   }
+
+  if (body.recurrence) {
+    f.rrule = buildRrule(body.recurrence, f.allDay);
+    f.dateStr = firstOccurrence(body.date, body.recurrence);
+  }
   return f;
+}
+
+/* ---------------------------------------------------------------------
+   繰り返しの新規作成・設定（Calendar高度サービス）
+   body.recurrence = { freq:'daily'|'weekly'|'monthly',
+                       byday:['MO','WE'],      // weeklyのみ
+                       bymonthday: 15 | -1,    // monthlyのみ（-1は月末）
+                       count: 10 | null,       // 回数（untilとどちらか）
+                       until: 'yyyy-MM-dd' | null }
+   クライアントからRRULE文字列は受け取らず、ここで値を検証して組み立てる。
+   --------------------------------------------------------------------- */
+var WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+function buildRrule(rec, allDay) {
+  var parts = [];
+  if (rec.freq === 'daily') parts.push('FREQ=DAILY');
+  else if (rec.freq === 'weekly') {
+    var days = [];
+    var src = rec.byday || [];
+    for (var i = 0; i < src.length; i++) {
+      if (WEEKDAY_CODES.indexOf(src[i]) >= 0 && days.indexOf(src[i]) < 0) days.push(src[i]);
+    }
+    if (!days.length) throw new Error('繰り返す曜日を選んでください');
+    parts.push('FREQ=WEEKLY');
+    parts.push('BYDAY=' + days.join(','));
+  } else if (rec.freq === 'monthly') {
+    var md = parseInt(rec.bymonthday, 10);
+    if (!(md === -1 || (md >= 1 && md <= 31))) throw new Error('毎月の日にちが正しくありません');
+    parts.push('FREQ=MONTHLY');
+    parts.push('BYMONTHDAY=' + md);
+  } else {
+    throw new Error('繰り返しの種類が正しくありません');
+  }
+
+  var count = rec.count ? parseInt(rec.count, 10) : 0;
+  if (count) {
+    if (!(count >= 1 && count <= 730)) throw new Error('繰り返しの回数は1〜730で指定してください');
+    parts.push('COUNT=' + count);
+  } else if (rec.until) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rec.until)) throw new Error('繰り返しの終了日が正しくありません');
+    if (allDay) {
+      parts.push('UNTIL=' + rec.until.replace(/-/g, ''));
+    } else {
+      // その日の終わり(日本時間の23:59:59)までを含める
+      var endOfDay = new Date(parseYmd(rec.until).getTime() + DAY_MS - 1000);
+      parts.push('UNTIL=' + Utilities.formatDate(endOfDay, 'UTC', "yyyyMMdd'T'HHmmss'Z'"));
+    }
+  }
+  return 'RRULE:' + parts.join(';');
+}
+
+/* 開始日が選んだ曜日・日にちと合っていないとき、最初に当てはまる日へ送る */
+function firstOccurrence(dateStr, rec) {
+  if (rec.freq === 'daily') return dateStr;
+  var base = parseYmd(dateStr);
+  for (var i = 0; i < 370; i++) {
+    var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    var ok;
+    if (rec.freq === 'weekly') {
+      ok = (rec.byday || []).indexOf(WEEKDAY_CODES[d.getDay()]) >= 0;
+    } else {
+      var md = parseInt(rec.bymonthday, 10);
+      var last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      ok = (md === -1) ? (d.getDate() === last) : (d.getDate() === md);
+    }
+    if (ok) return Utilities.formatDate(d, CONFIG.timeZone, 'yyyy-MM-dd');
+  }
+  return dateStr;
+}
+
+function createRecurringEvent(f) {
+  requireCalendarApi();
+  var body = { summary: f.fullTitle, location: f.location, description: f.description, recurrence: [f.rrule] };
+  body.start = apiTimes(f, f.dateStr, true).start;
+  body.end = apiTimes(f, f.dateStr, true).end;
+  return Calendar.Events.insert(body, f.calId);
+}
+
+/* 単発の既存予定に繰り返しを設定する（編集画面で「繰り返し」にチェックしたとき） */
+function makeRecurring(ev, f) {
+  requireCalendarApi();
+  var listed = Calendar.Events.list(f.calId, { iCalUID: ev.getId(), showDeleted: false, maxResults: 5 });
+  var items = (listed && listed.items) || [];
+  if (!items.length) throw new Error('繰り返しにする予定が見つかりません');
+  var body = { recurrence: [f.rrule] };
+  var t = apiTimes(f, f.dateStr, false);
+  body.start = t.start;
+  body.end = t.end;
+  Calendar.Events.patch(body, f.calId, items[0].id);
 }
 
 function createEventInCalendar(f) {
