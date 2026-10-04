@@ -1428,6 +1428,16 @@ DOMの`[role=combobox]`を開き、`[role=option]`の「新バージョン」を
 「デプロイ」ボタンを押すと確実にバージョンが上がった。(3) 外部URLのlocalhostはPNA/CSPでエディタから
 fetchできない。
 
+## 繰り返しの範囲選択が通常の予定にも出ていた不具合（2026-10-04、v58）
+
+**症状:** 繰り返しでない予定・新規追加でも「繰り返しの予定です。どこまで変更しますか？」が出た。
+**原因:** `#ae-scope-fld`は`.fld`（`display:block`）を持つため、`hidden`属性（ブラウザ標準の`display:none`）が
+作者CSSに負けて効かなかった。v57の確認は`.hidden`プロパティだけを見ていて、実際の表示（computed display）を
+見ていなかった。**教訓:** `hidden`で出し分ける要素に`display`を指定するクラスが付いているときは、
+`[hidden]{display:none}`を必ず足し、確認は`getComputedStyle().display`で行う。
+**対応:** `.scope-fld[hidden]{display:none}`を追加。新規/単発/繰り返し/閉じた後の4パターンで
+computed displayがnone/none/block/noneになることを確認。
+
 ## 未着手・検討中
 
 - ヘリナビ側 sw.js のプレフィックスガード（要ユーザー承認・VER上げと再デプロイが必要）
