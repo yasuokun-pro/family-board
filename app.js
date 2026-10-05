@@ -1102,24 +1102,26 @@ function agendaTimeHtml(ev) {
   return hhmm(ev.start) + '<small>' + hhmm(ev.end) + '</small>';
 }
 
-/* 見出し（日付・今日/明日・件数）。明日を表示しているときは、今日と見間違えないよう
-   「明日」のバッジ・オレンジの日付・画面の縁取り(body.view-tomorrow)で強調する。 */
+/* 見出し（日付・今日/明日・件数）。日付は常に大きめ(.day-date)で出す。
+   「明日」の強調（バッジ・オレンジの日付・サブ表示・画面の縁取り＝body.view-tomorrow）は、
+   常時表示モードの横画面で明日を表示しているときだけ。通常モード・縦向きでは出さない。 */
 function renderDayTitle(day, today, dayEvents) {
   var diff = Math.round((day - today) / 86400000);
   var label = diff === 0 ? '今日' : diff === 1 ? '明日' : diff === -1 ? '昨日' : '';
   var dateStr = (day.getMonth() + 1) + '/' + day.getDate() + '（' + DOW[day.getDay()] + '）';
+  var emphasize = diff === 1 && !!CFG.kiosk && !isPortrait() && !STATE.monthMode;
   var el = $('board-date');
-  if (diff === 1) {
+  if (emphasize) {
     el.innerHTML = '<span class="day-chip">明日</span><span class="day-date">' + dateStr + '</span>';
   } else {
-    el.textContent = dateStr + (label ? ' ' + label : '');
+    el.innerHTML = '<span class="day-date">' + dateStr + '</span>' + (label ? '<span>' + label + '</span>' : '');
   }
-  document.body.classList.toggle('view-tomorrow', diff === 1 && !STATE.monthMode);
+  document.body.classList.toggle('view-tomorrow', emphasize);
 
   var hol = STATE.holidays[ymd(day)];
   var count = dayEvents.length + ' 件';
   var sub;
-  if (diff === 1) {
+  if (emphasize) {
     var parts = [];
     if (hol) parts.push(hol);
     if (todayFinished(new Date())) parts.push('今日の予定は終了');

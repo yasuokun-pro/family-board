@@ -1560,8 +1560,8 @@ body.kiosk-mode.controls-visible .board-tools {
 .rp-count-row span { color: var(--muted); }
 .rp-msg { min-height: 1.2em; font-size: 13px; color: #FF8080; margin-top: 4px; }
 
-/* --- 明日の予定を表示しているとき（常時表示モードで今日が終わった後など） ---
-   今日の画面と見間違えないよう、「明日」バッジ・大きなオレンジの日付・画面の縁取りで強調する。 */
+/* --- 明日の予定の強調（常時表示モードの横画面で明日を表示しているときだけ） ---
+   今日の画面と見間違えないよう、「明日」バッジ・オレンジの日付・画面の縁取りで強調する。 */
 :root { --tomorrow: #FF9A3D; }
 .day-chip {
   display: inline-block;
@@ -1572,7 +1572,9 @@ body.kiosk-mode.controls-visible .board-tools {
   font-weight: 800;
   letter-spacing: 0.06em;
 }
-.day-date { color: var(--tomorrow); font-weight: 800; font-size: 1.25em; }
+/* 日付の大きさは通常モードを含め常に大きめ。色・太さの強調は明日表示(body.view-tomorrow)のときだけ */
+.day-date { font-size: 1.25em; }
+body.view-tomorrow .day-date { color: var(--tomorrow); font-weight: 800; }
 body.view-tomorrow .board-sub { color: var(--tomorrow); }
 body.view-tomorrow #shift::after {
   content: '';
