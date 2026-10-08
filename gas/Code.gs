@@ -82,11 +82,25 @@ function doGet(e) {
     var from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (CONFIG.pastDays || 1));
     var to   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
 
+    /* from=yyyy-MM-dd&to=yyyy-MM-dd が付いているときは、その期間(両端の日を含む)だけを返す。
+       保存した予定の日だけをすばやく読み直すための軽い取得（祝日は返さない）。 */
+    var partial = false;
+    if (params.from && params.to) {
+      var ymdRe = /^\d{4}-\d{2}-\d{2}$/;
+      if (!ymdRe.test(params.from) || !ymdRe.test(params.to)) throw new Error('from/toの形式が正しくありません');
+      var pf = parseYmd(params.from), pt = parseYmd(params.to);
+      if (!(pt >= pf) || (pt - pf) / DAY_MS > 62) throw new Error('from/toの範囲が正しくありません');
+      from = pf;
+      to = new Date(pt.getFullYear(), pt.getMonth(), pt.getDate() + 1);
+      partial = true;
+    }
+
     var events = collectEvents(from, to);
-    var holidays = collectHolidays(from, to);
+    var holidays = partial ? {} : collectHolidays(from, to);
 
     return json({
       ok: true,
+      partial: partial,
       generatedAt: fmt(now),
       rangeStart: fmt(from),
       rangeEnd: fmt(to),
