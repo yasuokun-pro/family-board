@@ -532,7 +532,8 @@ var STATE = {
   lastFetch: 0,
   lastTouch: Date.now(),
   autoTomorrow: false,   // 常時表示モードで自動的に明日を出しているか
-  fetching: false
+  fetching: false,
+  refetchPending: false
 };
 
 var $ = function (id) { return document.getElementById(id); };
@@ -636,7 +637,9 @@ function cacheLoad() {
 }
 
 function fetchData(silent) {
-  if (STATE.fetching) return;
+  /* 取得中に呼ばれたら捨てずに、終わった直後にもう一度取る（保存直後の再取得が、
+     ちょうど定期更新と重なって無視される不具合があった） */
+  if (STATE.fetching) { STATE.refetchPending = true; return; }
 
   if (!CFG.endpoint) {
     STATE.events = demoEvents();
@@ -675,7 +678,47 @@ function fetchData(silent) {
       }
       setStatus('取得できません（' + String(err.message || err).slice(0, 24) + '）', true);
     })
-    .then(function () { STATE.fetching = false; });
+    .then(function () {
+      STATE.fetching = false;
+      if (STATE.refetchPending) { STATE.refetchPending = false; fetchData(true); }
+    });
+}
+
+/* 保存した予定の日だけをサーバーから読み直して、その期間の予定だけを差し替える。
+   （全期間(約3か月分)の取得は数秒かかるので、保存のたびにそれをやらない）
+   dates: 'yyyy-MM-dd' の配列。離れた日は別々に取り、近い日は1回にまとめる。 */
+function syncDays(dates) {
+  if (!CFG.endpoint || !dates.length) return Promise.resolve();
+  var uniq = {};
+  dates.forEach(function (d) { if (d) uniq[d] = true; });
+  var list = Object.keys(uniq).sort();
+  var ranges = [];
+  list.forEach(function (d) {
+    var last = ranges[ranges.length - 1];
+    if (last && (parseWhen(d, true) - parseWhen(last[1], true)) / 86400000 <= 14) last[1] = d;
+    else ranges.push([d, d]);
+  });
+  return Promise.all(ranges.map(function (r) {
+    var url = CFG.endpoint + (CFG.endpoint.indexOf('?') >= 0 ? '&' : '?') +
+              'from=' + r[0] + '&to=' + r[1] + '&_=' + Date.now();
+    return fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data || data.ok === false) throw new Error(data && data.error ? data.error : '不正な応答');
+        var fresh = parseEvents(data.events || []);
+        if (data.partial === true) mergeRange(r[0], r[1], fresh);
+        else { STATE.events = fresh; STATE.holidays = data.holidays || STATE.holidays; renderAll(); }   // 古いサーバーは期間指定を無視して全件を返す
+      });
+  }));
+}
+
+/* [fromYmd, toYmd] に重なる既存の予定を取り除き、取得した予定に差し替える */
+function mergeRange(fromYmd, toYmd, fresh) {
+  var rs = parseWhen(fromYmd, true);
+  var re = addDays(parseWhen(toYmd, true), 1);
+  var kept = STATE.events.filter(function (ev) { return !(ev.start < re && ev.end > rs); });
+  STATE.events = kept.concat(fresh).sort(function (a, b) { return a.start - b.start; });
+  renderAll();
 }
 
 /* ------------------------------------------------------------------
@@ -2375,16 +2418,30 @@ function submitAddEvent() {
     location: f.location, description: buildDescriptionWithEscort(f.memo, f.escort)
   };
   if (f.recurrence) payload.recurrence = f.recurrence;
-  var isUpdate = !!STATE.editingEvent;
+  var editing = STATE.editingEvent;
+  var isUpdate = !!editing;
   if (isUpdate) {
     payload.action = 'update';
-    payload.id = STATE.editingEvent.id;
-    payload.calId = STATE.editingEvent.calId;
-    if (STATE.editingEvent.recurring) payload.scope = currentScope();
+    payload.id = editing.id;
+    payload.calId = editing.calId;
+    if (editing.recurring) payload.scope = currentScope();
   }
 
-  // GAS側の書き込みは数秒かかることがあるので、待たせずにその日の
-  // 画面へすぐ戻す。保存自体は裏で続け、状況は⚙横のバッジで示す。
+  /* 保存はGAS側で数秒かかる。待たせないよう、①まず画面の予定をその場で書き換え、
+     ②裏で保存し、③成功したら保存した日だけを読み直して本物のデータに差し替える。
+     失敗したら①を元に戻す。繰り返しを複数回まとめて変える操作（これ以降/すべて/
+     繰り返しの新規設定）は予定の増減が読めないので、画面は変えずに保存後に全体を読み直す。 */
+  var affectsMany = !!payload.recurrence || (isUpdate && editing.recurring && payload.scope !== 'this');
+  var snapshot = STATE.events.slice();
+  var oldDate = isUpdate ? ymd(editing.start) : null;
+  var tmpId = isUpdate ? editing.id : 'tmp-' + Date.now();
+  if (!affectsMany) {
+    var rec = parseEvents([localRecord(payload, tmpId, isUpdate ? editing.calId : '', isUpdate && editing.recurring)])[0];
+    var rest = snapshot.filter(function (e) { return e.id !== tmpId; });
+    STATE.events = rest.concat(rec).sort(function (a, b) { return a.start - b.start; });
+    renderAll();
+  }
+
   closeAddEvent();
   setSyncStatus(isUpdate ? '更新中…' : '追加中…', 'saving');
 
@@ -2396,26 +2453,47 @@ function submitAddEvent() {
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || '保存に失敗しました');
-      STATE.events = [];
-      fetchData(false);
       setSyncStatus(isUpdate ? '更新しました' : '追加しました', 'ok');
+      if (affectsMany) { fetchData(true); return; }
+      syncDays([oldDate, payload.date]).catch(function () { fetchData(true); });
     })
     .catch(function (e) {
+      if (!affectsMany) { STATE.events = snapshot; renderAll(); }
       setSyncStatus('保存できません: ' + String(e.message || e).slice(0, 40), 'err');
     });
 }
 
+/* 送信内容から、サーバーが返す予定データと同じ形の仮データを作る（保存直後の即時表示用） */
+function localRecord(p, id, calId, recurring) {
+  var start, end;
+  if (p.allDay) {
+    start = p.date;
+    end = ymd(addDays(parseWhen(p.date, true), 1));
+  } else {
+    start = p.date + 'T' + p.startTime + ':00';
+    end = p.date + 'T' + p.endTime + ':00';
+  }
+  return { id: id, calId: calId, member: p.member, title: p.title, allDay: p.allDay,
+           start: start, end: end, location: p.location, description: p.description, recurring: !!recurring };
+}
+
 function deleteCurrentEvent() {
   if (!STATE.editingEvent) return;
-  var recurring = !!STATE.editingEvent.recurring;
+  var editing = STATE.editingEvent;
+  var recurring = !!editing.recurring;
   var scope = recurring ? currentScope() : '';
-  if (!window.confirm('この予定を削除しますか？\n' + STATE.editingEvent.title +
+  if (!window.confirm('この予定を削除しますか？\n' + editing.title +
                       (recurring ? '\n（繰り返し：' + SCOPE_LABELS[scope] + '）' : ''))) return;
 
-  var id = STATE.editingEvent.id;
-  var calId = STATE.editingEvent.calId;
-  var delBody = { action: 'delete', id: id, calId: calId };
+  var delBody = { action: 'delete', id: editing.id, calId: editing.calId };
   if (recurring) delBody.scope = scope;
+
+  var affectsMany = recurring && scope !== 'this';
+  var snapshot = STATE.events.slice();
+  if (!affectsMany) {
+    STATE.events = snapshot.filter(function (e) { return e.id !== editing.id; });
+    renderAll();
+  }
 
   closeAddEvent();
   setSyncStatus('削除中…', 'saving');
@@ -2428,11 +2506,11 @@ function deleteCurrentEvent() {
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || '削除に失敗しました');
-      STATE.events = [];
-      fetchData(false);
       setSyncStatus('削除しました', 'ok');
+      if (affectsMany) fetchData(true);
     })
     .catch(function (e) {
+      if (!affectsMany) { STATE.events = snapshot; renderAll(); }
       setSyncStatus('削除できません: ' + String(e.message || e).slice(0, 40), 'err');
     });
 }
