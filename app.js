@@ -533,7 +533,9 @@ var STATE = {
   lastTouch: Date.now(),
   autoTomorrow: false,   // 常時表示モードで自動的に明日を出しているか
   fetching: false,
-  refetchPending: false
+  refetchPending: false,
+  agendaOpen: null,      // 縦向き一覧で開いている詳細 {id, role, day}
+  lastSig: '',          // 直近に取得したデータの内容（変化が無ければ再描画しない）
 };
 
 var $ = function (id) { return document.getElementById(id); };
@@ -662,11 +664,16 @@ function fetchData(silent) {
     })
     .then(function (data) {
       if (!data || data.ok === false) throw new Error(data && data.error ? data.error : '不正な応答');
+      STATE.lastFetch = Date.now();
+      setStatus('更新 ' + hhmm(new Date()));
+      /* 前回取得と内容が同じなら何もしない。無駄な再描画で、タップして開いた詳細や
+         スクロール位置が崩れるのを防ぐ（アプリを開いた直後の自動更新で起きていた）。 */
+      var sig = JSON.stringify(data.events || []) + '|' + JSON.stringify(data.holidays || {});
+      if (sig === STATE.lastSig && STATE.events.length > 0) return;
+      STATE.lastSig = sig;
       STATE.events = parseEvents(data.events || []);
       STATE.holidays = data.holidays || {};
-      STATE.lastFetch = Date.now();
       cacheSave({ events: data.events || [], holidays: data.holidays || {}, at: Date.now() });
-      setStatus('更新 ' + hhmm(new Date()));
       renderAll();
     })
     .catch(function (err) {
@@ -1603,6 +1610,7 @@ function renderAgenda() {
     html += '</div>';
   }
   $('agenda').innerHTML = html || '<div class="ag-empty">予定はありません</div>';
+  restoreAgendaDetail();
   updateSchoolBadges();
 }
 
@@ -1646,16 +1654,43 @@ function toggleAgendaDetail(row) {
     if (openRow) openRow.classList.remove('open');
     openDetail.remove();
   }
+  STATE.agendaOpen = null;
   if (wasOpen) return;
 
+  if (insertAgendaDetail(row)) {
+    STATE.agendaOpen = { id: id, role: row.getAttribute('data-escort-role') || '', day: ymd(STATE.viewDate) };
+  }
+}
+
+function insertAgendaDetail(row) {
+  var id = row.getAttribute('data-id');
   var found = eventById(id);
-  if (!found) return;
+  if (!found) return false;
   var detail = document.createElement('div');
   detail.className = 'ag-detail';
   detail.setAttribute('data-for', id);
   detail.innerHTML = renderAgendaDetail(found, row.getAttribute('data-escort-role') || '');
   row.insertAdjacentElement('afterend', detail);
   row.classList.add('open');
+  return true;
+}
+
+/* 再描画（アプリを開いた直後の自動更新・5分ごとの更新・保存後の同期など）で
+   一覧が作り直されても、開いていた詳細が勝手に閉じないよう、同じ予定の詳細を開き直す。
+   予定が無くなっていたり別の日に移っていたら、そのまま閉じておく。 */
+function restoreAgendaDetail() {
+  var open = STATE.agendaOpen;
+  if (!open) return;
+  if (open.day !== ymd(STATE.viewDate)) { STATE.agendaOpen = null; return; }
+  var rows = $('agenda').querySelectorAll('.ag-ev');
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute('data-id') === open.id &&
+        (rows[i].getAttribute('data-escort-role') || '') === open.role) {
+      if (!insertAgendaDetail(rows[i])) STATE.agendaOpen = null;
+      return;
+    }
+  }
+  STATE.agendaOpen = null;
 }
 
 /* 予定の詳細のHTML。escortRoleがあれば(送迎の担当として出ている行なら)
